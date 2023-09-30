@@ -101,7 +101,7 @@ class downloadData:
                     playoff_game_id = self.target_year + "030" + str(round) + str(matchup_number) + str(game_id)
                     self.download_nhl_data(playoff_dir_path, playoff_game_id)
 
-download_path = os.path.join("data", "raw_data")
+download_path = os.path.join("raw_data")
 available_years = ['2016', '2017', '2018', '2019', '2020', '2021']
 for year in available_years:
     obj = downloadData(year, download_path)
