@@ -59,7 +59,7 @@ class downloadData:
         Function to extract NHL games' data for a specific year
         """
 
-        accessible_years = ['2016', '2017', '2018', '2019', '2020', '2021']
+        accessible_years = ['2016', '2017', '2018', '2019', '2020']
         
         if(self.target_year not in accessible_years):
             print("Dataset does not contain the entered year")
@@ -102,7 +102,7 @@ class downloadData:
                     self.download_nhl_data(playoff_dir_path, playoff_game_id)
 
 download_path = os.path.join("raw_data")
-available_years = ['2016', '2017', '2018', '2019', '2020', '2021']
+available_years = ['2016', '2017', '2018', '2019', '2020']
 for year in available_years:
     obj = downloadData(year, download_path)
     obj.download_nhl_raw_data()
