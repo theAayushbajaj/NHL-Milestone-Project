@@ -47,3 +47,44 @@ def euclidian_distance_goal(x_shot : int, y_shot : int,
         
     return np.linalg.norm(np.array([x_shot, y_shot]) - np.array([x_goal, y_goal]))
     
+
+
+#%%
+
+def get_stats(group):
+    return pd.DataFrame(
+        {'count' : group.count()})
+
+
+
+
+#%%
+# (group['event'] == 'Goal').sum()
+# len(group)
+
+
+# group.apply(get_stats_q3)
+
+
+
+
+
+def get_stats_q3(group):
+    conversion_rate = (group['event'] == 'Goal').sum() / len(group) if len(group) != 0 else 0
+    return pd.Series({
+         'total_shots': len(group),
+         'total_goal': (group['event'] == 'Goal').sum(),
+         'conversion_rate': conversion_rate
+        })
+
+
+
+#%%
+
+def calculate_proportion(group, column_name):
+    group[column_name + '_prop'] = group[column_name] / group[column_name].sum()
+    return group
+
+
+
+
