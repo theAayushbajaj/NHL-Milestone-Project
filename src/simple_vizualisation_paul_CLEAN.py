@@ -5,95 +5,14 @@ import matplotlib.pyplot as plt
 
 import src.simple_vizualisation_paul_functions as deez
 
-
 #%%
 
-dfs_dict['2016_playoff_games'].reset_index()
-
-
-# initialize full dataframe
-full_Data = pd.DataFrame()
-
-for name, df in dfs_dict.items():
-    season = name[:4] + "-" + str(int(name[:4]) + 1)
-    df['season'] = season
-    df['season type'] = name[5:]
-    full_Data = pd.concat([full_Data, df], axis=0)
-    
-    
-full_Data = full_Data.reset_index()
-full_Data = full_Data.drop('index', axis = 1)
-full_Data.shape
-
-
-
-
-#%%
-
-mask = (full_Data[['about_goals_away', 'about_goals_home']] == (0, 0)).all(axis=1)
-tmp = full_Data[mask]
-
-
-
-
-#%%
-# CEHCK FOR DUPLICATES
-full_Data[full_Data['result_description'].duplicated()]
-
-
-
-
-#%%
-data = full_Data.copy()
-# 1) types of shots
-
-
-data.groupby(['result_event', 'result_secondaryType']).size()
-
-data.groupby(['result_secondaryType', 'result_event']).size().unstack()
-
-df = data.groupby(['result_secondaryType', 'result_event']).size().unstack()
-
-df.columns = ['Goal', 'Unscored Shot']
-df['Total Shots'] = df['Goal'] + df['Unscored Shot']
-
-df['Goal Convergance Ratio'] = df['Goal'] / df['Total Shots']
-df['Goal Ratio'] = df['Goal'] / df['Goal'].sum()
-df
-
-
-#%%
-# Pivot Table
-data = full_Data.copy()
-
-data_pt = data.pivot_table(index = ['season type','result_secondaryType'],
-                            columns = ['result_event', 'season'],
-                            aggfunc = len,
-                            values = 'about_dateTime',
-                            fill_value = 0)
-
-data_pt
-
-
-#%%
-
+# Load Aayush's data
 full_Data = pd.read_csv('src/data/raw_data/playData.csv')
 
 #%%
 
-data = full_Data.copy()
-
-
-data_pt = data.pivot_table(index = ['game_type','shotType'],
-                            columns = ['event', 'season'],
-                            aggfunc = len,
-                            values = 'description',
-                            fill_value = 0)
-
-data_pt
-
-
-#%%
+# Add the distance column
 
 data = full_Data.copy()
 
@@ -106,52 +25,22 @@ data
 
 #%%
 
-index_features = ['shotType']
-column_features = ['event']
-agg_func_list = ['quantile']
-
-
-data_pt = data.pivot_table(index = index_features,
-                            columns = column_features,
-                            aggfunc = agg_func_list,
-                            values = 'shot_distance',
-                            fill_value = 0)
-
-data_pt
-
-
-
-#%%
-
-df = data_pt
-# Reshape the DataFrame for easier plotting
-df_melted = df['mean'].reset_index()
-
-sns.barplot(x="Shot", y="shotType", hue="game_type",  data=df_melted)
-
-
-df_melted.plot(kind = 'bar')
-
-
-#%%
-
-data
+# Plots of average Shot And Goal Distance per Type of Shot
 
 sns.barplot(x = 'shot_distance', y = 'shotType', hue = 'event' ,data = data)
 sns.catplot(x = 'shot_distance', y = 'shotType', hue = 'event' ,data = data,
             kind = 'box')
 
 
-
 #%%
-
-# QUNATILE SEPARATION
-
+# We will study the shots and goals distance for each season :
+# Cut distance in quantiles
 data['shot_distance_quantile'] = pd.qcut(data['shot_distance'] , 10)
 
+
 #%%
 
-# sns.barplot(x = 'shot_distance_quantile', y = 'shotType', hue = 'event' ,data = data)
+# goup shot distance bucket by season and event
 
 index_features = ['shot_distance_quantile']
 column_features = ['season','event']
@@ -169,12 +58,14 @@ data_pt.columns = data_pt.columns.droplevel(0)
 data_pt = data_pt.stack(level = 0)
 #%%
 
+# add conversion rate
 data_pt['conversion_rate'] = data_pt['Goal']/ (data_pt['Goal'] + data_pt['Shot'])
 
 data_pt = data_pt.reset_index()
 
 #%%
 
+# PLOTTING
 # Calculate the midpoints of the intervals
 midpoints = [round((interval.left + interval.right) / 2, 2) for interval in data_pt.shot_distance_quantile]
 
@@ -184,6 +75,9 @@ plt.xlabel('Shot Distance Midpoint')
 plt.ylabel('Conversion Rate')
 plt.title('Conversion Rate by Shot Distance Midpoint')  # adjust x-tick labels
 plt.show()
+
+
+
 
 
 
@@ -215,8 +109,8 @@ tmp = df.groupby(['shotType', 'shot_distance_section']).apply(deez.get_stats_q3)
 
 
 # Now, apply the function
-tmp = tmp.groupby(['shot_distance_section'], as_index = False).apply(calculate_proportion, column_name='total_shots')
-tmp = tmp.groupby(['shot_distance_section'], as_index = False).apply(calculate_proportion, column_name='total_goal')
+tmp = tmp.groupby(['shot_distance_section'], as_index = False).apply(deez.calculate_proportion, column_name='total_shots')
+tmp = tmp.groupby(['shot_distance_section'], as_index = False).apply(deez.calculate_proportion, column_name='total_goal')
 
 tmp = tmp.fillna(0)
 
@@ -244,15 +138,3 @@ ax.set_ylim(0, 0.4)
 
 # Show the plot
 plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
