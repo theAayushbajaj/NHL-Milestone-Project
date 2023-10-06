@@ -45,7 +45,7 @@ def main():
     None
 
     '''
-    # Create a SparkSession under the name "hockey"
+    # Create a SparkSession
     spark = (
         SparkSession.builder
         .config('spark.executor.memory', '3g')
