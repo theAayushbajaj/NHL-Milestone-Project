@@ -278,7 +278,16 @@ widgets.interact(interactive_tool, game_type = widgets.Dropdown(
 
 **5.1 - 4 plot offensive zone plots visualization**
 
+We developed this using a Dash Application. We built the application within Dash and then launched it as an overlay on Render. The Dash application is completely interactive, allowing users to make selections based on seasons and teams. You can access our Dash application via the following link:
 
+[Advanced Visualization Shot Map Plot](https://nhlhockeyapp.onrender.com/)
+
+Furthermore, we are providing our HTML plot for your reference:
+<iframe src="https://nhlhockeyapp.onrender.com/" title="Advanced Visualizations - Shot Maps" width="990" height="620"> </iframe>
+
+Here is a concise summary of the logs when we deployed our application on Render:
+
+![Deployment Logs](/assets/images/Deploy_logs.png)
 
 **5.2 - Plot interpretation**
 
