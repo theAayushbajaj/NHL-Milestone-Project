@@ -161,3 +161,13 @@ cython_debug/
 
 # ignore data directories
 src/data
+
+# ignore data directories
+src/data/data/
+
+# Data files
+*.csv
+*.json
+*.parquet
+*.pdf
+*.numbers
