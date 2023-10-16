@@ -14,7 +14,7 @@ To reproduce the project, run the following notebooks in the given order:
 - `src/Notebooks/02_simple_visualizations.ipynb` (Creates simple visualizations to analyse aggregate data)
 - `src/Notebooks/03_advanced_visualizations.ipynb` (Creates advanced interactive visualizations using Plotly)
 
-
+## Advanced Visualization Notes:
 Given a season, we are interested to compute (1) average shot rate per hour of entire league and (2) excess shot rate per hour for a team. 
 This data is provided in four json files in this link: https://drive.google.com/drive/folders/1Z7Tp46Sa4nBaLjChgZVGpMmSeyVzEk7M?usp=sharing
 
@@ -25,7 +25,6 @@ This data is provided in four json files in this link: https://drive.google.com/
 
 Files with the name excess_<season> contain the average excess shot rate per hour for all seasons, and have the following pattern: <team a>:<excess shot rate per hour for team a>. where each excess shot rate per hour for each team is a numpy array. The x and y coordinates for ploting are also saved as numpy arrays. 
 
-## Advanced Visualization Notes:
 ### Analysis Assumptions 
 There are three types of `periodType`s in the dataset: `SHOOTOUT`, `OVERTIME`, and `REGULAR`. For the sake of considering the each game only lasts 60 minutes, we remove the `events` that happend within `SHOOTOUR` and `OVERTIME`. 
 
