@@ -166,11 +166,9 @@ It's worth noticing that since we have two game types (`regular` and `playoff`) 
 
 ### Task 2 - Interactive Debugging Tool
 
-In this task, we delve into NHL data using Interactive Widgets, which enable us to effortlessly switch between Game Types (regular and playoffs) and seasons, as well as view all games. The Interactive Debugging Tool assists us in gaining a deeper understanding of the game data, offering a user-friendly visual representation. For each game, we can sequentially visualize all the event ID's, with events displayed on the ice rink to depict their positions. Additionally, detailed information about the players involved and the specific shot taken. 
+In this task, we delve into NHL data using Interactive Widgets, which enable us to effortlessly switch between Game Types (regular and playoffs) and seasons, as well as view all games. The Interactive Debugging Tool assists us in gaining a deeper understanding of the game data, offering a user-friendly visual representation. For each game, we can sequentially visualize all the event ID's, with events displayed on the ice rink to depict their positions. Additionally, detailed information about the players involved and the specific shot taken. Below is the output image generated using the interactive tool.
 
-Below is the output image generated using the interactive tool that shows the tool's output for the choices: `Game Type` (`regular_season`); `Season` (`2016`); and for `Game ID` (`0001`). It also shows relevant stats for the chosen options.
-
-![ice_rink](/assets/images/ice_rink.png)
+![ice_rink](/assets/images/MileStone1.png)
 
 Code written for this tool is given below:
 ```python
@@ -275,3 +273,56 @@ widgets.interact(interactive_tool, game_type = widgets.Dropdown(
     description='Select the Game Type:',
     disabled=False))
 ```
+
+### Task 5 - Advanced Visualizations: Shot Maps
+
+**5.1 - 4 plot offensive zone plots visualization**
+
+We developed this using a Dash Application. We built the application within Dash and then launched it as an overlay on Streamlit. The Dash application is completely interactive, allowing users to make selections based on seasons and teams. You can access our Dash application via the following link:
+
+Furthermore, we are providing our HTML plot for your reference:
+<iframe src="https://advancedvisuals.herokuapp.com/" title="Advanced Visualizations" width="990" height="620"> </iframe>
+
+Here is a concise summary of the logs when we deployed our application on Streamlit:
+
+**5.2 - Plot interpretation**
+
+Charts with the net positioned at the top illustrate offensive performance, indicating the number of shots taken by the chosen team. This visual representation conveys how the shot frequency compares to the NHL's average team during the same season, focusing on a specific location. The chart employs three distinct colors: 'red,' 'blue,' and 'white,' each representing different scenarios:
+
+The 'red' region indicates that the team has taken shots at a rate higher than the league average.
+The 'blue' region signifies that the team has taken shots at a rate lower than the league average.
+The 'white' region represents the team's shots taken at the league-average rate.
+
+By analyzing these graphs, one can assess the offensive capabilities of the selected team. The darker the 'red' region, the higher the density of shots for the selected team, while a darker 'blue' region implies a lower density of shots. The 'white' region shows the number of shots taken by the selected team at the league's average rate.
+
+**5.3 - Discussion on Performance Difference of Colorado Avalanche**
+
+In the 2016-17 season, the shot map indicates that the Colorado Avalanche's performance was fairly average. Most of the regions on the rink show that their shot frequency was in line with the league's average rate. Notable exceptions include two blue patterns, signifying that the team scored fewer goals than the league average rate, particularly close to the goal post. There is also a single red region on the left side of the rink, spanning 40 to 50 feet, where the team exceeded the league's average shot rate.
+
+![Colorado Avalanche1](/assets/images/2016_17_Colorado_Avalanche_Team.png)
+
+Fast forward to the 2020-21 season, and the overall shot map highlights a stellar performance by the Colorado Avalanche. The majority of the rink is colored in red, indicating that the team's shot frequency surpassed the league average rate, especially near the goal post, the center of the semi-rink, and the left side between 50 to 60 feet. There are only a few instances where the team's shot frequency was below the league average rate, mainly on the right side of the rink between 50 to 60 feet.
+
+![Colorado Avalanche2](/assets/images/2020_21_Colorado_Avalanche_Team.png)
+
+In summary, the Avalanche team's performance in the 2020-21 season was notably superior, with a larger portion of the rink showing shots exceeding the league average rate compared to the 2016-17 season, where their performance wasn't as strong. This assessment is supported by the prominent presence of red regions on the rink in 2020-21, which was not the case in 2016-17.
+
+**5.4 - Performance Comparison between Buffalo Sabres and Tampa Bay Lightning**
+
+Analyzing the graphs reveals that the Tampa Bay Lightning consistently adheres to a strategy of taking the maximum number of shots in front of the goal post on the rink. In all three seasons, they exhibit a red region, indicating that their shot frequency exceeds the league's average rate, prominently positioned in front of the goal post. This stands in contrast to the Buffalo Sabres, as their red regions consistently appear on the sides of the rink.
+
+Furthermore, the Buffalo Sabres display a darker section within the blue region, with this blue region mostly concentrated on the rink, especially during the 2019-20 and 2020-21 seasons. This pattern contributes to their lackluster performance. Notably, in the 2018-19 season, the Sabres do exhibit a red region, but it is not located in front of the goal post, in contrast to the Tampa Bay Lightning, which underscores another aspect contributing to their underperformance.
+
+In summary, one of the key factors contributing to the Tampa Bay Lightning's success is their consistent ability to take shots in front of the goal post that surpass the league's average rate.
+
+Graphs depicting the performance of the Tampa Bay Lightning in the seasons 2018-19, 2019-20, and 2020-21:-
+
+![Tampa Bay Lightning1](/assets/images/2018_19_Tampa_Bay_Lightning.png)
+![Tampa Bay Lightning2](/assets/images/2019_20_Tampa_Bay_Ligtning.png)
+![Tampa Bay Lightning3](/assets/images/2020_21_Tampa_Bay_Lightning.png)
+
+Plots illustrating the performance of the Buffalo Sabres in the 2018-19, 2019-20, and 2020-21 seasons:-
+
+![Buffalo Sabres1](/assets/images/2018_19_Buffalo_Sabres_Team.png)
+![Buffalo Sabres2](/assets/images/2019_20_Buffalo_Sabres_Team.png)
+![Buffalo Sabres3](/assets/images/2020_21_Buffalo_Sabres_Team.png)
