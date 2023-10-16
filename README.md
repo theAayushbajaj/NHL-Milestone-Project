@@ -74,7 +74,7 @@ The function `Smoother` is only for a better visualizations performance. This fu
 Here is the final result: 
 
 
-<img src="excess_shot_rate_example.png" alt="example" width="1000"/>
+<img src="data/excess_shot_rate_example.png" alt="example" width="1000"/>
 
 # How a single figure is plotted? 
 Given the `season = 20162017` and `team_name = 'Toronto Maple Leafs'`, the average shot rate for the entire league is computed from `ShotRate(df)` and then `ExcessRate(team, season, df_rate)` function computed the excess shot rate per hour. The result is smoothen out by `SmoothOut(team_name, season, dfa)`. The function `PlotShotMap(team_name, season, z_smooth, x, y)` creates the figure.  
