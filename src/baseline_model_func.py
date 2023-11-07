@@ -21,6 +21,8 @@ def distribution(y, name):
     plt.figure(figsize=[8, 6])
     plt.bar(x=['is goal', 'not a goal'], height=[goals, non_goals])
     plt.title(f'goal distribution percentage in 2016-2019 for {name}')
+    plt.ylabel('count')
+    plt.ylim((0, 1))
     plt.savefig('goal distribution percentage in 2016-2019 for {}.png'.format(name),
                 dpi=200)
     plt.show()
