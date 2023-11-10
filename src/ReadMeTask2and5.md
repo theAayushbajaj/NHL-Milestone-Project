@@ -2,7 +2,7 @@
 The program is called `baseline.py`. For this purpose, we train a simple logistic regression model on different sets of features from the First Feature Engineering Task. 
 1. `baseline.py`: This part trains and validates a simple logisitc regression model using the features from the first feature engineering task. 
 2. `baseline2.py`: Creates all figures into one.
-3. 'utils_ar_pa.py`: Helper functions for creating figures and formatings. This code is borrowed from student Paul. 
+3. 'utils_ar_pa.py`: Helper functions for creating figures and formatings. Student Paul wrote the part for figure creation. 
 
 # Advanced Model 
 This task is done in multiple parts. 
