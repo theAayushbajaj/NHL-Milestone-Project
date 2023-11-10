@@ -15,7 +15,7 @@ This task is done in multiple parts.
 
 
 # Links for Experiment Tracking: 
-1. [Task 3] (https://www.comet.com/2nd-milestone/baseline-model/d485ba3099ca4d9694823b2bf5ae0721?experiment-tab=panels&showOutliers=true&smoothing=0&xAxis=wall)
+1. [Task 3](https://www.comet.com/2nd-milestone/baseline-model/d485ba3099ca4d9694823b2bf5ae0721?experiment-tab=panels&showOutliers=true&smoothing=0&xAxis=wall)
 2. [Task 5-q1](https://www.comet.com/2nd-milestone/baseline-model/15cc16e53b304c8c83e9c015dc812ebf)
 3. [Task 5-q1-tuned](https://www.comet.com/2nd-milestone/baseline-model/b318d8d8e1e048189627095217d6865a)
 4. [Task 5-q2](https://www.comet.com/2nd-milestone/baseline-model/02098092281a4629b09c8a6b6e04ee4a)
