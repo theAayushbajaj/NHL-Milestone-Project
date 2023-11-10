@@ -14,6 +14,7 @@ This task is done in multiple parts.
 4. `task5_q2_part_4`: This part finds the best xgboost model with gridsearch cross-validation and validates the best model.
 5. `task5_q3_part_1`: In this part, we use feature selection methods from sklearn to identify the optimal set of features.
 6. `task5_q3_part_2`: In this part, we use shap library to identify the optimal set of features.
+7. `task5_q3_part_3`: In this part, we tune the hyperparameters with the found optimal set of features. 
 
 
 # Links for Experiment Tracking: 
@@ -21,4 +22,5 @@ This task is done in multiple parts.
 2. [Task 5-q1](https://www.comet.com/2nd-milestone/baseline-model/15cc16e53b304c8c83e9c015dc812ebf)
 3. [Task 5-q1-tuned](https://www.comet.com/2nd-milestone/baseline-model/b318d8d8e1e048189627095217d6865a)
 4. [Task 5-q2](https://www.comet.com/2nd-milestone/baseline-model/02098092281a4629b09c8a6b6e04ee4a)
-5. [Task 5-q2-tuned](https://www.comet.com/2nd-milestone/baseline-model/89d296cacbde4c38b1e2ceed6763eaa2) 
+5. [Task 5-q2-tuned](https://www.comet.com/2nd-milestone/baseline-model/89d296cacbde4c38b1e2ceed6763eaa2)
+6. [Task 5-q3-tuned](https://www.comet.com/2nd-milestone/baseline-model/4a6aa628377e48a2a71af99bce75c14b?experiment-tab=panels&showOutliers=true&smoothing=0&xAxis=step) 
