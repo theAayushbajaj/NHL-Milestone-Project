@@ -12,7 +12,8 @@ This task is done in multiple parts.
 2. `task5_q2_part_2`: This part Encodes the Categorical Columns and Standardizes the columns with different features. 
 3. `task5_q2_part_3`: This part trains and validates an xgboost model without hyperparameter tuning. 
 4. `task5_q2_part_4`: This part finds the best xgboost model with gridsearch cross-validation and validates the best model.
-5. `task5_q3_part_1`: In this part, we use feature selection methods from sklearn to identify the optimal set of features. 
+5. `task5_q3_part_1`: In this part, we use feature selection methods from sklearn to identify the optimal set of features.
+6. `task5_q3_part_2`: In this part, we use shap library to identify the optimal set of features.
 
 
 # Links for Experiment Tracking: 
