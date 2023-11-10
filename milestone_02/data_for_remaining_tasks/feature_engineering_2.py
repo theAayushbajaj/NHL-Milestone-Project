@@ -184,7 +184,7 @@ def feature_engg(df_tidy_game):
     print("Finishing up the feature engineering process!!!")
     return nhl_game_df
     
-df_nhl_data = pd.read_csv("df_tidy_data.csv")
+df_nhl_data = pd.read_csv("playDataProd.csv")
 df_nhl_data = feature_engg(df_nhl_data)
 df_nhl_data['empty net'] = df_nhl_data['empty net'].map({True: 1, False: 0})
 df_nhl_data.to_csv('df_data.csv',index=False)

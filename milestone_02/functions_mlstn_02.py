@@ -46,6 +46,21 @@ def split_train_val_test(data):
 # %%
 
 def plot_calibration_curve(model, features, target, val, train, experiment):
+    """
+    Plots the calibration curve, goal rate plot, cumulative goals plot, ROC curve, and reliability diagram for a given model.
+
+    Args:
+        model: A machine learning model object.
+        features: A list of feature names.
+        target: The target variable name.
+        val: A pandas DataFrame containing the validation data.
+        train: A pandas DataFrame containing the training data.
+        experiment: An instance of the comet_ml.Experiment class.
+
+    Returns:
+        None
+    """
+
     # initialize the model
     #model = model()
 
