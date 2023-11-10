@@ -69,9 +69,9 @@ data
 #%%
 
 # create data_sample, which is a subset of data, 100 rows
-data_sample = data.sample(n=100, random_state=1)
+#data_sample = data.sample(n=100, random_state=1)
 # to csv
-data_sample.to_csv('data_sample.csv', index=False)
+#data_sample.to_csv('data_sample.csv', index=False)
 
 
 # %%
@@ -121,18 +121,18 @@ data.dtypes
 #%%
 # fix strength column
 def fix_strength(df):
-    strength = 0
+    strength = 'even'
     if df['num player home'] > df['num player away']:
-        strength = 1 if df['team shot'] == df['home team'] else -1
+        strength = 'power_play' if df['team shot'] == df['home team'] else 'short_handed'
     elif df['num player home'] < df['num player away']:
-        strength = -1 if df['team shot'] == df['home team'] else 1
+        strength = 'short_handed' if df['team shot'] == df['home team'] else 'power_play'
     df['strength'] = strength
     return df
 
 #%%
 data = data.apply(fix_strength, axis=1)
 # change strength to categorical
-data['strength'] = data['strength'].astype('category')
+#data['strength'] = data['strength'].astype('category')
 
 #%%
 data.dtypes
