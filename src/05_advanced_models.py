@@ -81,7 +81,7 @@ def advanced_question1(experiment):
 #%%
 def preprocess_question2(data):
     # omitting the non-essential features
-    data['attacking_goals'] = data.apply(lambda x: np.max(x['home goal'] - 1, 0) if x['home team'] == x['team shot'] else x['away goal'], axis = 1)
+    data['attacking_goals'] = data.apply(lambda x: np.max(x['home goal'] - 1, 0) if x['home team'] == x['team shot'] else np.max(x['away goal']-1,0), axis = 1)
     data['defending_goals'] = data.apply(lambda x: x['home goal'] if x['home team'] != x['team shot'] else x['away goal'], axis = 1)
     data['is_home'] = data.apply(lambda x: 1 if x['home team'] == x['team shot'] else 0, axis = 1)
 
@@ -245,64 +245,86 @@ def advanced_question2():
     return clf
 #%%
 def feature_selection_question3(model, X_train, X_val, y_train, y_val):
-    # Try lasso feature selection
     # Fit the model pipeline with your training data
-    # Use a smaller sample of the training data for SHAP computation to speed it up
-    X_train_sampled, _, y_train_sampled, _ = train_test_split(
-        X_train, y_train, train_size=0.1, stratify=y_train, random_state=42
-    )
-
-    # Fit the model on the full training data
     model.fit(X_train, y_train)
 
-    # Extract the fitted model and the preprocessor
-    fitted_model = model.named_steps['model']
-    preprocessor = model.named_steps['preprocessor']
-
-    # Transform the sampled features
-    X_train_transformed_sampled = preprocessor.transform(X_train_sampled)
-
-    # Create a SHAP TreeExplainer and compute SHAP values on the sampled transformed features
-    explainer = shap.TreeExplainer(fitted_model)
-    shap_values = explainer.shap_values(X_train_transformed_sampled, approximate=True)
-    
-    model.fit(X_train, y_train)
-    print('ckpt 1')
     # Extract the fitted XGBClassifier from the pipeline
     fitted_model = model.named_steps['model']
 
     # Create a SHAP TreeExplainer using the fitted XGBClassifier model
     explainer = shap.TreeExplainer(fitted_model)
-    print('ckpt 2')
+
     # Transform the features (X_train) using the preprocessor to get the transformed features
     X_train_transformed = model.named_steps['preprocessor'].transform(X_train)
 
     # Compute SHAP values - this can be compute-intensive for large datasets
-    shap_values = explainer.shap_values(X_train_transformed)
-    print('ckpt 3')
+    shap_values = explainer.shap_values(X_train_transformed, approximate=True)
+
     # Get the feature names after preprocessing
     feature_names = model.named_steps['preprocessor'].get_feature_names_out()
+
     # Visualize the SHAP values (for example, a summary plot)
     shap.summary_plot(shap_values, X_train_transformed, plot_type='bar', show=False, feature_names=feature_names)
     plt.savefig('shap_summary_plot.png')
-    print('ckpt 4')
+
     # Log the SHAP summary plot to Comet
     experiment.log_image('shap_summary_plot.png', name='SHAP Summary Plot')
 
     # Return the top 20 features based on SHAP values
-    # Aggregate the SHAP values across all output classes (important for multi-class classification)
+    # For multi-class classification, sum the SHAP values across all classes
     shap_sum = np.abs(shap_values).mean(axis=0)
-    if isinstance(shap_sum, list):
+    if isinstance(shap_sum, list):  # Multi-class case
         shap_sum = np.sum(np.array(shap_sum), axis=0)
 
     # Create a series of SHAP values
     shap_series = pd.Series(shap_sum, index=feature_names).sort_values(ascending=False)
+    top_features_indices = np.argsort(-shap_sum)[:10]  # Get indices of top features
 
-    # Transform features for X_train and X_val
-    X_train_top_features = X_train_transformed[:, shap_series.head(20).index]
-    X_val_top_features = model.named_steps['preprocessor'].transform(X_val)[:, shap_series.head(20).index]
+    # Select the top features for X_train and X_val
+    X_train_top_features = X_train_transformed[:, top_features_indices]
+    X_val_transformed = model.named_steps['preprocessor'].transform(X_val)
+    X_val_top_features = X_val_transformed[:, top_features_indices]
 
     return X_train_top_features, X_val_top_features
+
+# def feature_selection_question3(model, X_train, X_val, y_train, y_val):
+#     model.fit(X_train, y_train)
+#     print('ckpt 1')
+#     # Extract the fitted XGBClassifier from the pipeline
+#     fitted_model = model.named_steps['model']
+
+#     # Create a SHAP TreeExplainer using the fitted XGBClassifier model
+#     explainer = shap.TreeExplainer(fitted_model)
+#     print('ckpt 2')
+#     # Transform the features (X_train) using the preprocessor to get the transformed features
+#     X_train_transformed = model.named_steps['preprocessor'].transform(X_train)
+
+#     # Compute SHAP values - this can be compute-intensive for large datasets
+#     shap_values = explainer.shap_values(X_train_transformed, approximate=True)
+#     print('ckpt 3')
+#     # Get the feature names after preprocessing
+#     feature_names = model.named_steps['preprocessor'].get_feature_names_out()
+#     # Visualize the SHAP values (for example, a summary plot)
+#     shap.summary_plot(shap_values, X_train_transformed, plot_type='bar', show=False, feature_names=feature_names)
+#     plt.savefig('shap_summary_plot.png')
+#     print('ckpt 4')
+#     # Log the SHAP summary plot to Comet
+#     experiment.log_image('shap_summary_plot.png', name='SHAP Summary Plot')
+
+#     # Return the top 20 features based on SHAP values
+#     # Aggregate the SHAP values across all output classes (important for multi-class classification)
+#     shap_sum = np.abs(shap_values).mean(axis=0)
+#     if isinstance(shap_sum, list):
+#         shap_sum = np.sum(np.array(shap_sum), axis=0)
+
+#     # Create a series of SHAP values
+#     shap_series = pd.Series(shap_sum, index=feature_names).sort_values(ascending=False)
+
+#     # Transform features for X_train and X_val
+#     X_train_top_features = X_train_transformed[:, shap_series.head(10).index]
+#     X_val_top_features = model.named_steps['preprocessor'].transform(X_val)[:, shap_series.head(10).index]
+
+#     return X_train_top_features, X_val_top_features
 
 #%%
 def advanced_question3():
@@ -331,7 +353,7 @@ def advanced_question3():
     # Train the model with the best hyperparameters
     model.set_params(**best_hyperparams)
     model.fit(pd.concat([X_train, X_val]), pd.concat([y_train, y_val]))
-
+    #%%
     y_pred = model.predict(X_val)
 
     accuracy = accuracy_score(y_val, y_pred)
@@ -347,7 +369,7 @@ def advanced_question3():
     experiment.log_image(classification_report_path, name='Classification Report')
 
     # Finally, log the model itself
-    experiment.log_model("best_xgboost_model", clf)
+    #experiment.log_model("best_xgboost_model", clf)
     #%%
     return clf
 
