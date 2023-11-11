@@ -49,6 +49,7 @@ experiment = Experiment(
     workspace="2nd milestone",
     log_code=True
 )
+experiment.log_code(file_name='05_advanced_models.py')
 #%%
 def advanced_question1(experiment):
     '''
@@ -79,13 +80,11 @@ def advanced_question1(experiment):
 
 #%%
 def preprocess_question2(data):
-    class CustomFunctionTransformer(FunctionTransformer):
-        def __init__(self, func, feature_names_out, validate=False):
-            super().__init__(func, validate=validate)
-            self.feature_names_out = feature_names_out
-
-        def get_feature_names_out(self, input_features=None):
-            return self.feature_names_out
+    # omitting the non-essential features
+    data = data.drop(['game date','game id','shooter','goalie','rinkSide'],axis=1)
+    data['attacking_goals'] = data.apply(lambda x: np.max(x['home goal'] - 1, 0) if x['home team'] == x['team shot'] else x['away goal'], axis = 1)
+    data['defending_goals'] = data.apply(lambda x: x['home goal'] if x['home team'] != x['team shot'] else x['away goal'], axis = 1)
+    data['is_home'] = data.apply(lambda x: 1 if x['home team'] == x['team shot'] else 0, axis = 1)
     
     def fix_strength(df):
         strength = 'even'
@@ -97,45 +96,22 @@ def preprocess_question2(data):
         return df
 
     data = data.apply(fix_strength, axis=1)
+    
     # split the data
     train, val, test = utils.split_train_val_test(data)
-    X_train = train.drop(columns=['is goal'])
+    X_train = train.drop(columns=['season','is goal'])
     y_train = train['is goal']
-    X_val = val.drop(columns=['is goal'])
+    X_val = val.drop(columns=['season','is goal'])
     y_val = val['is goal']
 
     # Categorical columns and corresponding transformers
     categorical_cols = X_train.select_dtypes(include=['object', 'bool', 'category']).columns.tolist()
 
-    # remove 'game date' and 'period time'
-    categorical_cols.remove('game date')
-    categorical_cols.remove('period time')
     # We need to convert booleans to integers before one-hot encoding
     for col in categorical_cols:
         if X_train[col].dtype == 'bool':
             X_train[col] = X_train[col].astype(int)
             X_val[col] = X_val[col].astype(int)
-
-    # Define a custom transformer to parse the game date
-    def parse_game_date(X):
-        X = pd.to_datetime(X['game date'], errors='coerce')
-        return np.c_[X.dt.year, X.dt.month, X.dt.day]
-
-    # Define a custom transformer to parse the period time
-    def parse_period_time(X):
-        period_time_in_seconds = X['period time'].str.split(':', expand=True).astype(int)
-        period_time_in_seconds = period_time_in_seconds[0] * 60 + period_time_in_seconds[1]
-        return period_time_in_seconds.values.reshape(-1, 1)
-
-    # Create transformers for the date and time columns
-    date_transformer = CustomFunctionTransformer(
-                        parse_game_date,
-                        feature_names_out=['game_year', 'game_month', 'game_day']
-                    )
-    time_transformer = CustomFunctionTransformer(
-                        parse_period_time,
-                        feature_names_out=['game_year', 'game_month', 'game_day']
-                    )
 
 
     categorical_transformer = Pipeline(steps=[
@@ -150,18 +126,11 @@ def preprocess_question2(data):
         ('scaler', MinMaxScaler())
     ])
 
-    time_pipeline = Pipeline(steps=[
-        ('parse_time', time_transformer),
-        ('scale', MinMaxScaler())
-    ])
-
     # Add the custom transformers to the preprocessing pipeline
     preprocessor = ColumnTransformer(
         transformers=[
             ('num', numerical_transformer, numerical_cols),
-            ('cat', categorical_transformer, categorical_cols),
-            ('date', date_transformer, ['game date']),
-            ('time', time_pipeline, ['period time']),
+            ('cat', categorical_transformer, categorical_cols)
         ],
         remainder='drop'  # This drops the columns that we haven't transformed
     )
@@ -177,7 +146,6 @@ def preprocess_question2(data):
 #%%
 def hyperparameter_tuning_question2(model, X_train, y_train, X_val, y_val):
     def objective(params):
-        # Create the RandomForestClassifier with the given hyperparameters
         model.set_params(**params)
         model.fit(X_train, y_train)
 
@@ -231,7 +199,18 @@ def advanced_question2():
     model, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
     #%%
     # Perform hyperparameter tuning
-    best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
+    #best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
+    best_hyperparams = {'model__colsample_bytree': 0.8027518366137031,
+                        'model__gamma': 0.26323633422422865,
+                        'model__learning_rate': 0.15,
+                        'model__max_delta_step': 3,
+                        'model__max_depth': 7,
+                        'model__min_child_weight': 3,
+                        'model__n_estimators': 239,
+                        'model__reg_alpha': 0.6978729873816338,
+                        'model__reg_lambda': 3.7646728674809875,
+                        'model__scale_pos_weight': 3.4052468075491102,
+                        'model__subsample': 0.7778593312583509}
     #%%
     # Train the model with the best hyperparameters
     model.set_params(**best_hyperparams)
@@ -243,7 +222,7 @@ def advanced_question2():
     f1 = f1_score(y_val, y_pred, average='macro')
     recall = recall_score(y_val, y_pred, average='macro')
     experiment.log_metrics({"accuracy": accuracy, "f1_score": f1, "recall": recall})
-    
+    #%%
     # Generate and log confusion matrix and classification report
     confusion_matrix_path = utils.plot_confusion_matrix(y_val, y_pred)
     classification_report_path = utils.plot_classification_report(y_val, y_pred)
@@ -253,7 +232,7 @@ def advanced_question2():
 
     #%%
     # Finally, log the model itself
-    experiment.log_model("best_xgboost_model", model)
+    #experiment.log_model("best_xgboost_model", model)
     #%%
     return clf
 #%%
@@ -273,9 +252,10 @@ def feature_selection_question3(model, X_train, X_val, y_train, y_val):
 
     # Compute SHAP values - this can be compute-intensive for large datasets
     shap_values = explainer.shap_values(X_train_transformed)
-
+    # Get the feature names after preprocessing
+    feature_names = model.named_steps['preprocessor'].get_feature_names_out()
     # Visualize the SHAP values (for example, a summary plot)
-    shap.summary_plot(shap_values, X_train_transformed, plot_type='bar', show=False)
+    shap.summary_plot(shap_values, X_train_transformed, plot_type='bar', show=False, feature_names=feature_names)
     plt.savefig('shap_summary_plot.png')
 
     # Log the SHAP summary plot to Comet
@@ -284,51 +264,18 @@ def feature_selection_question3(model, X_train, X_val, y_train, y_val):
     # Return the top 20 features based on SHAP values
     # Aggregate the SHAP values across all output classes (important for multi-class classification)
     shap_sum = np.abs(shap_values).mean(axis=0)
-    if isinstance(shap_sum, list):  # Handling multi-class outputs
+    if isinstance(shap_sum, list):
         shap_sum = np.sum(np.array(shap_sum), axis=0)
-
-    # Get the feature names after preprocessing
-    feature_names = model.named_steps['preprocessor'].get_feature_names_out()
 
     # Create a series of SHAP values
     shap_series = pd.Series(shap_sum, index=feature_names).sort_values(ascending=False)
-    top_20_features = shap_series.head(20).index.tolist()
 
     # Transform features for X_train and X_val
-    X_train_top_features = model.named_steps['preprocessor'].transform(X_train)[:, shap_series.head(20).index]
+    X_train_top_features = X_train_transformed[:, shap_series.head(20).index]
     X_val_top_features = model.named_steps['preprocessor'].transform(X_val)[:, shap_series.head(20).index]
 
     return X_train_top_features, X_val_top_features
 
-    # # Fit the model pipeline with your training data
-    # model.fit(X_train, y_train)
-    # fitted_model = model.named_steps['model']
-
-    # # Create a SHAP TreeExplainer using the fitted XGBClassifier model
-    # explainer = shap.TreeExplainer(fitted_model)
-
-    # # Transform the features (X_train) using the preprocessor to get the transformed features
-    # X_train_transformed = model.named_steps['preprocessor'].transform(X_train)
-
-    # # Compute SHAP values - this step can be compute-intensive for large datasets
-    # shap_values = explainer.shap_values(X_train_transformed)
-
-    # # Visualize the SHAP values (for example, a summary plot)
-    # shap.summary_plot(shap_values, X_train_transformed, plot_type = 'bar',feature_names=X_train.columns, show=False)
-    # plt.savefig('shap_summary_plot.png')
-
-    # # Log the SHAP summary plot to Comet
-    # experiment.log_image('shap_summary_plot.png', name='SHAP Summary Plot')
-
-    # # return the top 10 features
-    # shap_sum = np.abs(shap_values).mean(axis=0).mean(axis=0)
-    # shap_series = pd.Series(shap_sum, index=X_train.columns).sort_values(ascending=False)
-    # top_20_features = shap_series.head(20).index.tolist()
-    
-    # X_train = X_train[top_20_features]
-    # X_val = X_val[top_20_features]
-
-    # return X_train, X_val
 #%%
 def advanced_question3():
     #%%
@@ -336,7 +283,18 @@ def advanced_question3():
     model, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
     #%%
     # Perform hyperparameter tuning
-    best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
+    #best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
+    best_hyperparams = {'model__colsample_bytree': 0.8027518366137031,
+                        'model__gamma': 0.26323633422422865,
+                        'model__learning_rate': 0.15,
+                        'model__max_delta_step': 3,
+                        'model__max_depth': 7,
+                        'model__min_child_weight': 3,
+                        'model__n_estimators': 239,
+                        'model__reg_alpha': 0.6978729873816338,
+                        'model__reg_lambda': 3.7646728674809875,
+                        'model__scale_pos_weight': 3.4052468075491102,
+                        'model__subsample': 0.7778593312583509}
     
     #%%
     model.set_params(**best_hyperparams)
@@ -369,4 +327,6 @@ if __name__ == '__main__':
     #advanced_question1()
     clf = advanced_question2()
     #advanced_question3(clf)
+
+    #%%
     experiment.end()
