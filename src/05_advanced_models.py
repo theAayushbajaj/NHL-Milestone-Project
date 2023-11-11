@@ -81,11 +81,11 @@ def advanced_question1(experiment):
 #%%
 def preprocess_question2(data):
     # omitting the non-essential features
-    data = data.drop(['game date','game id','shooter','goalie','rinkSide'],axis=1)
     data['attacking_goals'] = data.apply(lambda x: np.max(x['home goal'] - 1, 0) if x['home team'] == x['team shot'] else x['away goal'], axis = 1)
     data['defending_goals'] = data.apply(lambda x: x['home goal'] if x['home team'] != x['team shot'] else x['away goal'], axis = 1)
     data['is_home'] = data.apply(lambda x: 1 if x['home team'] == x['team shot'] else 0, axis = 1)
-    
+
+    data = data.drop(['game date','game id','shooter','goalie','rinkSide','home goal','away goal'],axis=1)
     def fix_strength(df):
         strength = 'even'
         if df['num player home'] > df['num player away']:
@@ -97,6 +97,14 @@ def preprocess_question2(data):
 
     data = data.apply(fix_strength, axis=1)
     
+    def parse_period_time(row):
+        minutes, seconds = row['period time'].split(':')
+        period_time_in_seconds = int(minutes) * 60 + int(seconds)
+        return period_time_in_seconds
+
+    # Apply the function to the 'period time' column
+    data['period time'] = data.apply(lambda x: parse_period_time(x), axis=1)
+
     # split the data
     train, val, test = utils.split_train_val_test(data)
     X_train = train.drop(columns=['season','is goal'])
@@ -199,18 +207,18 @@ def advanced_question2():
     model, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
     #%%
     # Perform hyperparameter tuning
-    #best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
-    best_hyperparams = {'model__colsample_bytree': 0.8027518366137031,
-                        'model__gamma': 0.26323633422422865,
-                        'model__learning_rate': 0.15,
-                        'model__max_delta_step': 3,
-                        'model__max_depth': 7,
-                        'model__min_child_weight': 3,
-                        'model__n_estimators': 239,
-                        'model__reg_alpha': 0.6978729873816338,
-                        'model__reg_lambda': 3.7646728674809875,
-                        'model__scale_pos_weight': 3.4052468075491102,
-                        'model__subsample': 0.7778593312583509}
+    best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
+    # best_hyperparams = {'model__colsample_bytree': 0.8027518366137031,
+    #                     'model__gamma': 0.26323633422422865,
+    #                     'model__learning_rate': 0.15,
+    #                     'model__max_delta_step': 3,
+    #                     'model__max_depth': 7,
+    #                     'model__min_child_weight': 3,
+    #                     'model__n_estimators': 239,
+    #                     'model__reg_alpha': 0.6978729873816338,
+    #                     'model__reg_lambda': 3.7646728674809875,
+    #                     'model__scale_pos_weight': 3.4052468075491102,
+    #                     'model__subsample': 0.7778593312583509}
     #%%
     # Train the model with the best hyperparameters
     model.set_params(**best_hyperparams)
@@ -229,7 +237,7 @@ def advanced_question2():
 
     experiment.log_image(confusion_matrix_path, name='Confusion Matrix')
     experiment.log_image(classification_report_path, name='Classification Report')
-
+    #utils.plot_calibration_curve(model, X_val.columns, y_val, experiment)
     #%%
     # Finally, log the model itself
     #experiment.log_model("best_xgboost_model", model)
@@ -239,25 +247,45 @@ def advanced_question2():
 def feature_selection_question3(model, X_train, X_val, y_train, y_val):
     # Try lasso feature selection
     # Fit the model pipeline with your training data
+    # Use a smaller sample of the training data for SHAP computation to speed it up
+    X_train_sampled, _, y_train_sampled, _ = train_test_split(
+        X_train, y_train, train_size=0.1, stratify=y_train, random_state=42
+    )
+
+    # Fit the model on the full training data
     model.fit(X_train, y_train)
 
+    # Extract the fitted model and the preprocessor
+    fitted_model = model.named_steps['model']
+    preprocessor = model.named_steps['preprocessor']
+
+    # Transform the sampled features
+    X_train_transformed_sampled = preprocessor.transform(X_train_sampled)
+
+    # Create a SHAP TreeExplainer and compute SHAP values on the sampled transformed features
+    explainer = shap.TreeExplainer(fitted_model)
+    shap_values = explainer.shap_values(X_train_transformed_sampled, approximate=True)
+    
+    model.fit(X_train, y_train)
+    print('ckpt 1')
     # Extract the fitted XGBClassifier from the pipeline
     fitted_model = model.named_steps['model']
 
     # Create a SHAP TreeExplainer using the fitted XGBClassifier model
     explainer = shap.TreeExplainer(fitted_model)
-
+    print('ckpt 2')
     # Transform the features (X_train) using the preprocessor to get the transformed features
     X_train_transformed = model.named_steps['preprocessor'].transform(X_train)
 
     # Compute SHAP values - this can be compute-intensive for large datasets
     shap_values = explainer.shap_values(X_train_transformed)
+    print('ckpt 3')
     # Get the feature names after preprocessing
     feature_names = model.named_steps['preprocessor'].get_feature_names_out()
     # Visualize the SHAP values (for example, a summary plot)
     shap.summary_plot(shap_values, X_train_transformed, plot_type='bar', show=False, feature_names=feature_names)
     plt.savefig('shap_summary_plot.png')
-
+    print('ckpt 4')
     # Log the SHAP summary plot to Comet
     experiment.log_image('shap_summary_plot.png', name='SHAP Summary Plot')
 
@@ -284,17 +312,17 @@ def advanced_question3():
     #%%
     # Perform hyperparameter tuning
     #best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
-    best_hyperparams = {'model__colsample_bytree': 0.8027518366137031,
-                        'model__gamma': 0.26323633422422865,
-                        'model__learning_rate': 0.15,
-                        'model__max_delta_step': 3,
-                        'model__max_depth': 7,
-                        'model__min_child_weight': 3,
-                        'model__n_estimators': 239,
-                        'model__reg_alpha': 0.6978729873816338,
-                        'model__reg_lambda': 3.7646728674809875,
-                        'model__scale_pos_weight': 3.4052468075491102,
-                        'model__subsample': 0.7778593312583509}
+    best_hyperparams = {'model__colsample_bytree': 0.8413468662876783,
+                        'model__gamma': 0.1542200178365982,
+                        'model__learning_rate': 0.02,
+                        'model__max_delta_step': 6,
+                        'model__max_depth': 9,
+                        'model__min_child_weight': 1,
+                        'model__n_estimators': 498,
+                        'model__reg_alpha': 0.6391221150411099,
+                        'model__reg_lambda': 1.6482143600684203,
+                        'model__scale_pos_weight': 2.5549248274774303,
+                        'model__subsample': 0.9381666380110677}
     
     #%%
     model.set_params(**best_hyperparams)
