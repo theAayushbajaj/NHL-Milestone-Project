@@ -81,8 +81,8 @@ def advanced_question1(experiment):
 #%%
 def preprocess_question2(data):
     # omitting the non-essential features
-    data['attacking_goals'] = data.apply(lambda x: np.max(x['home goal'] - 1, 0) if x['home team'] == x['team shot'] else np.max(x['away goal']-1,0), axis = 1)
-    data['defending_goals'] = data.apply(lambda x: x['home goal'] if x['home team'] != x['team shot'] else x['away goal'], axis = 1)
+    #data['attacking_goals'] = data.apply(lambda x: np.max(x['home goal'] - 1, 0) if x['home team'] == x['team shot'] else np.max(x['away goal']-1,0), axis = 1)
+    #data['defending_goals'] = data.apply(lambda x: x['home goal'] if x['home team'] != x['team shot'] else x['away goal'], axis = 1)
     data['is_home'] = data.apply(lambda x: 1 if x['home team'] == x['team shot'] else 0, axis = 1)
 
     data = data.drop(['game date','game id','shooter','goalie','rinkSide','home goal','away goal'],axis=1)
@@ -107,10 +107,14 @@ def preprocess_question2(data):
 
     # period as categorical
     data['period'] = data['period'].astype('category')
-    # empty net as categorical
-    data['empty net'] = data['empty net'].astype('category')
-    # is_home as categorical
-    data['is_home'] = data['is_home'].astype('category')
+    # empty net as boolean
+    data['empty net'] = data['empty net'].astype('bool')
+    # is_home as boolean
+    data['is_home'] = data['is_home'].astype('bool')
+    # attacking_goals as categorical
+    #data['attacking_goals'] = data['attacking_goals'].astype('category')
+    # defending_goals as categorical
+    #data['defending_goals'] = data['defending_goals'].astype('category')
 
 
     # split the data
@@ -122,12 +126,13 @@ def preprocess_question2(data):
 
     # Categorical columns and corresponding transformers
     categorical_cols = X_train.select_dtypes(include=['object', 'bool', 'category']).columns.tolist()
+    print(categorical_cols)
 
     # We need to convert booleans to integers before one-hot encoding
-    for col in categorical_cols:
-        if X_train[col].dtype == 'bool':
-            X_train[col] = X_train[col].astype(int)
-            X_val[col] = X_val[col].astype(int)
+    #for col in categorical_cols:
+    #    if X_train[col].dtype == 'bool':
+    #        X_train[col] = X_train[col].astype(int)
+    #        X_val[col] = X_val[col].astype(int)
 
 
     categorical_transformer = Pipeline(steps=[
@@ -213,6 +218,8 @@ def advanced_question2():
     #%%
     data_fe2 = pd.read_csv('data/data_for_remaining_tasks/df_data.csv') 
     model, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
+    #%%
+    print(X_train.dtypes)
     #%%
     # Perform hyperparameter tuning
     best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
@@ -402,3 +409,4 @@ if __name__ == '__main__':
 
     #%%
     experiment.end()
+# %%
