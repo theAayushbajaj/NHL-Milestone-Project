@@ -153,7 +153,7 @@ def preprocess_question2(data):
 
 
     # Categorical columns for target encoding
-    target_encoding_cols = ['your_categorical_column']  # Update with your column names
+    target_encoding_cols = ['empty net']  # Update with your column names
 
 
     # Categorical columns and corresponding transformers
@@ -165,13 +165,15 @@ def preprocess_question2(data):
 
     # Target Encoder for selected categorical columns
     target_encoder = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
+        #('imputer', SimpleImputer(strategy='constant', fill_value= 0)),
+        ('imputer', SimpleImputer(strategy='most_frequent')),
         ('target_enc', TargetEncoder())
     ])
 
     # One-Hot Encoder for other categorical columns
     onehot_encoder = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
+        #('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
+        ('imputer', SimpleImputer(strategy='most_frequent')),
         ('onehot', OneHotEncoder(handle_unknown='ignore'))
     ])
 
@@ -186,10 +188,17 @@ def preprocess_question2(data):
     numerical_cols = X_train.select_dtypes(include=['int64', 'float64']).columns.tolist()
     print(numerical_cols)
 
+    #numerical_transformer = Pipeline(steps=[
+    #    ('imputer', SimpleImputer(strategy='median')),
+    #    ('scaler', MinMaxScaler())
+    #])
+
     numerical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='median')),
+        ('imputer', SimpleImputer(strategy='constant', fill_value=np.nan)),
         ('scaler', MinMaxScaler())
     ])
+
+
 
     # We need to convert booleans to integers before one-hot encoding
     for col in categorical_cols:
