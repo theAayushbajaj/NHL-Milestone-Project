@@ -11,6 +11,7 @@ from sklearn.preprocessing import FunctionTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline, FeatureUnion
+from category_encoders import TargetEncoder
 import shap
 # Models
 from xgboost import XGBClassifier
@@ -59,24 +60,50 @@ def advanced_question1(experiment):
     setup, and compare the results to the Logistic Regression baseline. Include a link to the relevant comet.ml entry for this experiment, 
     but you do not need to log this model to the model registry.
     '''
-
+    ##%%
     data_baseline = pd.read_csv('data/baseline_model_data.csv')
     train_base, val_base, test_base = utils.split_train_val_test(data_baseline)
 
+    ##%%
+
     X_train = train_base[['shot distance', 'shot angle']]
     y_train = train_base['is goal']
+    X_val = val_base[['shot distance', 'shot angle']]
+    y_val = val_base['is goal']
 
-    features = ['shot_distance', 'shot_angle']
-    target = ['is_goal']
+    ##%%
+
+    features = ['shot distance', 'shot angle']
+    target = ['is goal']
     # Define the pipeline
     xg_pipeline = Pipeline(steps=[
         ('scaler', MinMaxScaler()),
         ('classifier', XGBClassifier(use_label_encoder=False, eval_metric='logloss'))
     ])
 
+    # Fit the pipeline
+    xg_pipeline.fit(X_train, y_train)
+
+    # Make predictions
+    y_pred = xg_pipeline.predict(X_val)
+
+    ##%%
+
+    # Generate and log confusion matrix and classification report
+    confusion_matrix_path = utils.plot_confusion_matrix(y_val, y_pred)
+    classification_report_path = utils.plot_classification_report(y_val, y_pred)
+
+    experiment.log_image(confusion_matrix_path, name='Confusion Matrix (Baseline)')
+    experiment.log_image(classification_report_path, name='Classification Report (Baseline)')
+
+    ##%%
 
     # Now call the function with this pipeline
     utils.plot_calibration_curve(xg_pipeline, features, target, val_base, train_base, experiment)
+
+#%%
+
+advanced_question1(experiment)
 
 #%%
 def preprocess_question2(data):
@@ -124,36 +151,60 @@ def preprocess_question2(data):
     X_val = val.drop(columns=['season','is goal'])
     y_val = val['is goal']
 
+
+    # Categorical columns for target encoding
+    target_encoding_cols = ['your_categorical_column']  # Update with your column names
+
+
     # Categorical columns and corresponding transformers
     categorical_cols = X_train.select_dtypes(include=['object', 'bool', 'category']).columns.tolist()
     print(categorical_cols)
 
-    # We need to convert booleans to integers before one-hot encoding
-    #for col in categorical_cols:
-    #    if X_train[col].dtype == 'bool':
-    #        X_train[col] = X_train[col].astype(int)
-    #        X_val[col] = X_val[col].astype(int)
+    # Categorical columns for one-hot encoding (excluding target encoded ones)
+    one_hot_encoding_cols = [col for col in categorical_cols if col not in target_encoding_cols]
 
+    # Target Encoder for selected categorical columns
+    target_encoder = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
+        ('target_enc', TargetEncoder())
+    ])
 
-    categorical_transformer = Pipeline(steps=[
+    # One-Hot Encoder for other categorical columns
+    onehot_encoder = Pipeline(steps=[
         ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
         ('onehot', OneHotEncoder(handle_unknown='ignore'))
     ])
 
+
+
+    #categorical_transformer = Pipeline(steps=[
+    #    ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
+    #    ('onehot', OneHotEncoder(handle_unknown='ignore'))
+    #])
+
     # Numerical columns and corresponding transformers
     numerical_cols = X_train.select_dtypes(include=['int64', 'float64']).columns.tolist()
+    print(numerical_cols)
+
     numerical_transformer = Pipeline(steps=[
         ('imputer', SimpleImputer(strategy='median')),
         ('scaler', MinMaxScaler())
     ])
 
-    # Add the custom transformers to the preprocessing pipeline
+    # We need to convert booleans to integers before one-hot encoding
+    for col in categorical_cols:
+        if X_train[col].dtype == 'bool':
+            X_train[col] = X_train[col].astype(int)
+            X_val[col] = X_val[col].astype(int)
+
+    # Column Transformer combining all
     preprocessor = ColumnTransformer(
         transformers=[
             ('num', numerical_transformer, numerical_cols),
-            ('cat', categorical_transformer, categorical_cols)
+            ('cat_onehot', onehot_encoder, one_hot_encoding_cols),
+            ('cat_target', target_encoder, target_encoding_cols)
         ],
-        remainder='drop'  # This drops the columns that we haven't transformed
+        remainder='drop'
     )
 
     # Create the preprocessing and modeling pipeline
