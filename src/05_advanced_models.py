@@ -12,6 +12,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline, FeatureUnion
 import shap
+from sklearn.base import clone
 # Models
 from xgboost import XGBClassifier
 
@@ -81,8 +82,8 @@ def advanced_question1(experiment):
 #%%
 def preprocess_question2(data):
     # omitting the non-essential features
-    data['attacking_goals'] = data.apply(lambda x: np.max(x['home goal'] - 1, 0) if x['home team'] == x['team shot'] else np.max(x['away goal']-1,0), axis = 1)
-    data['defending_goals'] = data.apply(lambda x: x['home goal'] if x['home team'] != x['team shot'] else x['away goal'], axis = 1)
+    #data['attacking_goals'] = data.apply(lambda x: np.max(x['home goal'] - 1, 0) if x['home team'] == x['team shot'] else np.max(x['away goal']-1,0), axis = 1)
+    #data['defending_goals'] = data.apply(lambda x: x['home goal'] if x['home team'] != x['team shot'] else x['away goal'], axis = 1)
     data['is_home'] = data.apply(lambda x: 1 if x['home team'] == x['team shot'] else 0, axis = 1)
 
     data = data.drop(['game date','game id','shooter','goalie','rinkSide','home goal','away goal'],axis=1)
@@ -105,6 +106,13 @@ def preprocess_question2(data):
     # Apply the function to the 'period time' column
     data['period time'] = data.apply(lambda x: parse_period_time(x), axis=1)
 
+    # period as categorical
+    data['period'] = data['period'].astype('category')
+    # empty net as boolean
+    data['empty net'] = data['empty net'].astype('bool')
+    # is_home as boolean
+    data['is_home'] = data['is_home'].astype('bool')
+
     # split the data
     train, val, test = utils.split_train_val_test(data)
     X_train = train.drop(columns=['season','is goal'])
@@ -115,23 +123,23 @@ def preprocess_question2(data):
     # Categorical columns and corresponding transformers
     categorical_cols = X_train.select_dtypes(include=['object', 'bool', 'category']).columns.tolist()
 
+    # Numerical columns and corresponding transformers
+    numerical_cols = X_train.select_dtypes(include=['int64', 'float64']).columns.tolist()
+    numerical_transformer = Pipeline(steps=[
+        ('imputer', SimpleImputer(strategy='median')),
+        ('scaler', MinMaxScaler())
+    ])
+
     # We need to convert booleans to integers before one-hot encoding
     for col in categorical_cols:
         if X_train[col].dtype == 'bool':
             X_train[col] = X_train[col].astype(int)
             X_val[col] = X_val[col].astype(int)
 
-
+    print(categorical_cols)
     categorical_transformer = Pipeline(steps=[
         ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
         ('onehot', OneHotEncoder(handle_unknown='ignore'))
-    ])
-
-    # Numerical columns and corresponding transformers
-    numerical_cols = X_train.select_dtypes(include=['int64', 'float64']).columns.tolist()
-    numerical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='median')),
-        ('scaler', MinMaxScaler())
     ])
 
     # Add the custom transformers to the preprocessing pipeline
@@ -204,6 +212,8 @@ def hyperparameter_tuning_question2(model, X_train, y_train, X_val, y_val):
 def advanced_question2():
     #%%
     data_fe2 = pd.read_csv('data/data_for_remaining_tasks/df_data.csv') 
+
+    #%%
     model, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
     #%%
     # Perform hyperparameter tuning
@@ -247,28 +257,35 @@ def advanced_question2():
 def feature_selection_question3(model, X_train, X_val, y_train, y_val):
     # Fit the model pipeline with your training data
     model.fit(X_train, y_train)
-
+    
     # Extract the fitted XGBClassifier from the pipeline
     fitted_model = model.named_steps['model']
-
+    
     # Create a SHAP TreeExplainer using the fitted XGBClassifier model
     explainer = shap.TreeExplainer(fitted_model)
-
+    
     # Transform the features (X_train) using the preprocessor to get the transformed features
     X_train_transformed = model.named_steps['preprocessor'].transform(X_train)
-
+    
     # Compute SHAP values - this can be compute-intensive for large datasets
     shap_values = explainer.shap_values(X_train_transformed, approximate=True)
-
+    
     # Get the feature names after preprocessing
     feature_names = model.named_steps['preprocessor'].get_feature_names_out()
+    
+    plt.switch_backend('Agg')
 
-    # Visualize the SHAP values (for example, a summary plot)
-    shap.summary_plot(shap_values, X_train_transformed, plot_type='bar', show=False, feature_names=feature_names)
-    plt.savefig('shap_summary_plot.png')
+    # Your SHAP calculation code
 
+    # Visualize the SHAP values with a beeswarm plot
+    shap.summary_plot(shap_values, X_train_transformed, plot_type='dot', feature_names=feature_names)
+
+    # Ensure that the figure is explicitly defined and saved
+    fig = plt.gcf()  # Get the current figure before saving it
+    fig.savefig('shap_beeswarm_plot.png', bbox_inches='tight')  # Use bbox_inches to include all plot elements
+    plt.close(fig)  # Close the plot to free up memory
     # Log the SHAP summary plot to Comet
-    experiment.log_image('shap_summary_plot.png', name='SHAP Summary Plot')
+    experiment.log_image('shap_beeswarm_plot.png', name='SHAP Beeswarm Plot')
 
     # Return the top 20 features based on SHAP values
     # For multi-class classification, sum the SHAP values across all classes
@@ -281,80 +298,63 @@ def feature_selection_question3(model, X_train, X_val, y_train, y_val):
     top_features_indices = np.argsort(-shap_sum)[:10]  # Get indices of top features
 
     # Select the top features for X_train and X_val
-    X_train_top_features = X_train_transformed[:, top_features_indices]
     X_val_transformed = model.named_steps['preprocessor'].transform(X_val)
-    X_val_top_features = X_val_transformed[:, top_features_indices]
+    if isinstance(X_train_transformed, np.ndarray):
+        X_train_top_features = X_train_transformed[:, top_features_indices]
+    else:
+        X_train_top_features = X_train_transformed.toarray()[:, top_features_indices]
 
-    return X_train_top_features, X_val_top_features
+    if isinstance(X_val_transformed, np.ndarray):
+        X_val_top_features = X_val_transformed[:, top_features_indices]
+    else:
+        X_val_top_features = X_val_transformed.toarray()[:, top_features_indices]
 
-# def feature_selection_question3(model, X_train, X_val, y_train, y_val):
-#     model.fit(X_train, y_train)
-#     print('ckpt 1')
-#     # Extract the fitted XGBClassifier from the pipeline
-#     fitted_model = model.named_steps['model']
+    # Remove 'num__' and 'cat__' prefixes from the feature names
+    def clean_feature_name(fname):
+        return fname.replace('num__', '').replace('cat__', '')
 
-#     # Create a SHAP TreeExplainer using the fitted XGBClassifier model
-#     explainer = shap.TreeExplainer(fitted_model)
-#     print('ckpt 2')
-#     # Transform the features (X_train) using the preprocessor to get the transformed features
-#     X_train_transformed = model.named_steps['preprocessor'].transform(X_train)
+    # Get clean top feature names
+    top_feature_names = [clean_feature_name(feature_names[i]) for i in top_features_indices]
+    return top_feature_names, top_features_indices
 
-#     # Compute SHAP values - this can be compute-intensive for large datasets
-#     shap_values = explainer.shap_values(X_train_transformed, approximate=True)
-#     print('ckpt 3')
-#     # Get the feature names after preprocessing
-#     feature_names = model.named_steps['preprocessor'].get_feature_names_out()
-#     # Visualize the SHAP values (for example, a summary plot)
-#     shap.summary_plot(shap_values, X_train_transformed, plot_type='bar', show=False, feature_names=feature_names)
-#     plt.savefig('shap_summary_plot.png')
-#     print('ckpt 4')
-#     # Log the SHAP summary plot to Comet
-#     experiment.log_image('shap_summary_plot.png', name='SHAP Summary Plot')
-
-#     # Return the top 20 features based on SHAP values
-#     # Aggregate the SHAP values across all output classes (important for multi-class classification)
-#     shap_sum = np.abs(shap_values).mean(axis=0)
-#     if isinstance(shap_sum, list):
-#         shap_sum = np.sum(np.array(shap_sum), axis=0)
-
-#     # Create a series of SHAP values
-#     shap_series = pd.Series(shap_sum, index=feature_names).sort_values(ascending=False)
-
-#     # Transform features for X_train and X_val
-#     X_train_top_features = X_train_transformed[:, shap_series.head(10).index]
-#     X_val_top_features = model.named_steps['preprocessor'].transform(X_val)[:, shap_series.head(10).index]
-
-#     return X_train_top_features, X_val_top_features
 
 #%%
 def advanced_question3():
     #%%
     data_fe2 = pd.read_csv('data/data_for_remaining_tasks/df_data.csv') 
-    model, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
+    model_pipeline, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
     #%%
     # Perform hyperparameter tuning
-    #best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
-    best_hyperparams = {'model__colsample_bytree': 0.8413468662876783,
-                        'model__gamma': 0.1542200178365982,
-                        'model__learning_rate': 0.02,
+    #best_hyperparams = hyperparameter_tuning_question2(model_pipeline,X_train, y_train, X_val, y_val)
+    best_hyperparams = {'model__colsample_bytree': 0.8443652326712037,
+                        'model__gamma': 0.3836159341092055,
+                        'model__learning_rate': 0.11,
                         'model__max_delta_step': 6,
-                        'model__max_depth': 9,
+                        'model__max_depth': 6,
                         'model__min_child_weight': 1,
-                        'model__n_estimators': 498,
-                        'model__reg_alpha': 0.6391221150411099,
-                        'model__reg_lambda': 1.6482143600684203,
-                        'model__scale_pos_weight': 2.5549248274774303,
-                        'model__subsample': 0.9381666380110677}
+                        'model__n_estimators': 385,
+                        'model__reg_alpha': 0.4947013395389696,
+                        'model__reg_lambda': 2.5789685513445617,
+                        'model__scale_pos_weight': 3.956297703976836,
+                        'model__subsample': 0.9275047750757387}
     
     #%%
     model.set_params(**best_hyperparams)
-    X_train, X_val = feature_selection_question3(model, X_train, X_val, y_train, y_val)
+    top_feature_names, top_feature_indices = feature_selection_question3(model_pipeline, X_train, X_val, y_train, y_val)
     #%%
     # Train the model with the best hyperparameters
-    model.set_params(**best_hyperparams)
-    model.fit(pd.concat([X_train, X_val]), pd.concat([y_train, y_val]))
+    # First, fit and transform with the preprocessor
+    preprocessor = clone(model_pipeline.named_steps['preprocessor'])
+    X_train_transformed = preprocessor.fit_transform(X_train).toarray()
+
+    # Now, fit the model separately with the transformed data
+    model = clone(model_pipeline.named_steps['model'])
+    X_train_transformed = X_train_transformed[:,top_feature_indices]
+    X_val_transformed = preprocessor.transform(X_val).toarray()[:,top_feature_indices]
+    model.fit(np.concatenate((X_train_transformed,X_val_transformed)), pd.concat([y_train,y_val]))
+
     #%%
-    y_pred = model.predict(X_val)
+    y_pred = model.predict(X_val_transformed)
 
     accuracy = accuracy_score(y_val, y_pred)
     f1 = f1_score(y_val, y_pred, average='macro')
