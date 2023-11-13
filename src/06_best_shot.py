@@ -39,6 +39,18 @@ import utils
 # Joblib for model persistence
 import joblib
 
+
+# Random Forest with SMOTE
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report, accuracy_score
+from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline as ImbPipeline
+from sklearn.preprocessing import StandardScaler
+from hyperopt import hp, fmin, tpe, Trials, space_eval
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import f1_score
+
 #%%
 # get api key from text file
 COMET_API_KEY = open('comet_api_key.txt').read().strip()
@@ -46,11 +58,11 @@ COMET_API_KEY = open('comet_api_key.txt').read().strip()
 # Create an experiment with your api key
 experiment = Experiment(
     api_key=COMET_API_KEY,
-    project_name="Advanced model",
+    project_name="Best Shot model 1",
     workspace="2nd milestone",
     log_code=True
 )
-experiment.log_code(file_name='05_advanced_models.py')
+experiment.log_code(file_name='06_best_shot.py')
 #%%
 def advanced_question1(experiment):
     '''
@@ -76,25 +88,26 @@ def advanced_question1(experiment):
     features = ['shot_distance', 'shot_angle']
     target = ['is_goal']
     #%%
-    # Define the pipeline
-    xg_pipeline = Pipeline(steps=[
+    # Define the pipeline with SMOTE and Random Forest
+    rf_smote_pipeline = ImbPipeline(steps=[
         ('scaler', MinMaxScaler()),
-        ('classifier', XGBClassifier(use_label_encoder=False, eval_metric='logloss'))
+        ('smote', SMOTE(random_state=42)),  # Apply SMOTE
+        ('classifier', RandomForestClassifier(random_state=42))  # Random Forest Classifier
     ])
 
     # Fit the pipeline
-    xg_pipeline.fit(X_train, y_train)
+    rf_smote_pipeline.fit(X_train, y_train)
 
     #%%
-    model_reg_filename = f"advanced_question1_model.pkl"  # Modify as needed
+    model_reg_filename = f"bestshot_model_01.pkl"  # Modify as needed
     # Now call the function with this pipeline
-    utils.plot_calibration_curve(model = xg_pipeline, 
+    utils.plot_calibration_curve(model = rf_smote_pipeline, 
                                  features = features, 
                                  target = target, 
                                  val = val_base, 
                                  train = train_base, 
                                  model_reg_filename = model_reg_filename,
-                                 tags = ["XGBoost_model_baseline", "calibration_curve"], 
+                                 tags = ["rfSMOTE_model_baseline", "calibration_curve"], 
                                  experiment = experiment)
 
 #%%
@@ -170,38 +183,34 @@ def preprocess_question2(data):
         remainder='drop'  # This drops the columns that we haven't transformed
     )
 
-    # Create the preprocessing and modeling pipeline
-    model_pipeline = Pipeline(steps=[
+    # Create the preprocessing and modeling pipeline with Random Forest
+    model_pipeline = ImbPipeline(steps=[
         ('preprocessor', preprocessor),
-        ('model', XGBClassifier(use_label_encoder=False, eval_metric='logloss'))
+        ('smote', SMOTE(random_state=42)),
+        ('model', RandomForestClassifier(random_state=42))
     ])
 
     return model_pipeline, X_train, y_train, X_val, y_val
 
 #%%
-def hyperparameter_tuning_question2(model, X_train, y_train, X_val, y_val):
+def hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_val):
     def objective(params):
-        model.set_params(**params)
-        model.fit(X_train, y_train)
+        # Update only the model's parameters
+        model_pipeline.named_steps['model'].set_params(**params)
+        model_pipeline.fit(X_train, y_train)
 
-        y_pred = model.predict(X_val)
+        y_pred = model_pipeline.predict(X_val)
         loss = -f1_score(y_val, y_pred, average='macro')
 
         return {'loss': loss, 'status': STATUS_OK}
 
-    # Define the search space for hyperparameters
+    # Define the search space for RandomForest hyperparameters
     space = {
-        'model__n_estimators': hp.choice('model__n_estimators', range(50, 500)),
-        'model__learning_rate': hp.quniform('model__learning_rate', 0.01, 0.2, 0.01),
-        'model__max_depth': hp.choice('model__max_depth', range(3, 14)),
-        'model__min_child_weight': hp.choice('model__min_child_weight', range(1, 10)),
-        'model__gamma': hp.uniform('model__gamma', 0.0, 0.5),
-        'model__subsample': hp.uniform('model__subsample', 0.5, 1.0),
-        'model__colsample_bytree': hp.uniform('model__colsample_bytree', 0.5, 1.0),
-        'model__reg_alpha': hp.uniform('model__reg_alpha', 0.0, 1.0),
-        'model__reg_lambda': hp.uniform('model__reg_lambda', 1.0, 4.0),
-        'model__scale_pos_weight': hp.uniform('model__scale_pos_weight', 1.0, 10.0),
-        'model__max_delta_step': hp.choice('model__max_delta_step', range(1, 10)),
+        'n_estimators': hp.choice('n_estimators', range(50, 500)),
+        'max_depth': hp.choice('max_depth', range(3, 14)),
+        'min_samples_split': hp.choice('min_samples_split', range(2, 10)),
+        'min_samples_leaf': hp.choice('min_samples_leaf', range(1, 5)),
+        'max_features': hp.choice('max_features', ['auto', 'sqrt', 'log2']),
     }
     # Initialize Trials object to keep track of results
     trials = Trials()
@@ -211,7 +220,7 @@ def hyperparameter_tuning_question2(model, X_train, y_train, X_val, y_val):
         fn=objective,
         space=space,
         algo=tpe.suggest,
-        max_evals=100,
+        max_evals=10,
         trials=trials
     )
 
@@ -231,29 +240,43 @@ def hyperparameter_tuning_question2(model, X_train, y_train, X_val, y_val):
 def advanced_question2():
     #%%
     data_fe2 = pd.read_csv('data/new_data_for_modeling_tasks/df_data.csv') 
+    #%%
+
+    # Preprocess the data and get the pipeline
+    model_pipeline, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
+
+    # Dropping NaN values to ensure data quality
+    X_train = X_train.dropna()
+    y_train = y_train[X_train.index]
+    X_val = X_val.dropna()
+    y_val = y_val[X_val.index]
+    #%%
+
+    # Perform hyperparameter tuning
+    best_hyperparams = hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_val)
 
     #%%
-    model, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
-    #%%
-    # Perform hyperparameter tuning
-    best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
-    #%%
+
+
+    # Set the best hyperparameters to the model in the pipeline
+    model_pipeline.named_steps['model'].set_params(**best_hyperparams)
+
     # Train the model with the best hyperparameters
-    model.set_params(**best_hyperparams)
-    model.fit(pd.concat([X_train, X_val]), pd.concat([y_train, y_val]))
+    model_pipeline.fit(pd.concat([X_train, X_val]), pd.concat([y_train, y_val]))
     #%%
-    # Plot calibration curve
-    model_reg_filename = f"advanced_question2_model.pkl"
-    utils.plot_calibration_curve(model = model, 
-                                 features = X_train.columns, 
-                                 target = ['is_goal'], 
-                                 val = pd.concat([X_val,y_val],axis=1), 
-                                 train = X_train, 
-                                 model_reg_filename = model_reg_filename,
-                                 tags = ["XGBoost_model_allFeatures", "calibration_curve"], 
-                                 experiment = experiment)
+
+    # Plot calibration curve (make sure the function is adapted for Random Forest)
+    model_reg_filename = f"advanced_question2_rf_model.pkl"
+    utils.plot_calibration_curve(model=model_pipeline, 
+                                 features=X_train.columns, 
+                                 target=['is_goal'], 
+                                 val=pd.concat([X_val, y_val], axis=1), 
+                                 train=X_train, 
+                                 model_reg_filename=model_reg_filename,
+                                 tags=["RandomForest_model_allFeatures", "calibration_curve"], 
+                                 experiment=experiment)
     #%%
-    return clf
+    return model_pipeline
 #%%
 def feature_selection_question3(model, X_train, X_val, y_train, y_val):
     # Fit the model pipeline with your training data
@@ -317,49 +340,6 @@ def feature_selection_question3(model, X_train, X_val, y_train, y_val):
     # Get clean top feature names
     top_feature_names = [clean_feature_name(feature_names[i]) for i in top_features_indices]
     return top_feature_names, top_features_indices
-
-
-#%%
-def advanced_question3():
-    #%%
-    data_fe2 = pd.read_csv('data/new_data_for_modeling_tasks/df_data.csv') 
-    model_pipeline, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
-    #%%
-    # Perform hyperparameter tuning
-    best_hyperparams = hyperparameter_tuning_question2(model_pipeline,X_train, y_train, X_val, y_val)
-    
-    #%%
-    model_pipeline.set_params(**best_hyperparams)
-    top_feature_names, top_feature_indices = feature_selection_question3(model_pipeline, X_train, X_val, y_train, y_val)
-    #%%
-    # Train the model with the best hyperparameters
-    # First, fit and transform with the preprocessor
-    preprocessor = clone(model_pipeline.named_steps['preprocessor'])
-    X_train_transformed = preprocessor.fit_transform(X_train).toarray()
-
-    # Now, fit the model separately with the transformed data
-    model = clone(model_pipeline.named_steps['model'])
-    X_train_transformed = X_train_transformed[:,top_feature_indices]
-    X_val_transformed = preprocessor.transform(X_val).toarray()[:,top_feature_indices]
-    model.fit(np.concatenate((X_train_transformed,X_val_transformed)), pd.concat([y_train,y_val]))
-
-    #%%
-    model_reg_filename = f"advanced_question3_model.pkl"
-    utils.plot_calibration_curve(model = model_pipeline, 
-                                 features = X_train.columns, 
-                                 target = ['is_goal'], 
-                                 val = pd.concat([X_val,y_val],axis=1), 
-                                 train = X_train, 
-                                 model_reg_filename = model_reg_filename,
-                                 tags = ["Tuned_XGBoost_model_allFeatures", "calibration_curve"], 
-                                 experiment = experiment)
-    #%%
-    return clf
-
-if __name__ == '__main__':
-    #advanced_question1()
-    clf = advanced_question2()
-    #advanced_question3(clf)
 
     #%%
     experiment.end()
