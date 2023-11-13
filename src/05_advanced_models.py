@@ -144,7 +144,7 @@ def preprocess_question2(data):
     # Numerical columns and corresponding transformers
     numerical_cols = X_train.select_dtypes(include=['int64', 'float64']).columns.tolist()
     numerical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='median')),
+        #('imputer', SimpleImputer(strategy='median')),
         ('scaler', MinMaxScaler())
     ])
 
@@ -156,7 +156,8 @@ def preprocess_question2(data):
 
     print(categorical_cols)
     categorical_transformer = Pipeline(steps=[
-        ('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
+        #('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
+        ('imputer', SimpleImputer(strategy='most_frequent')),
         ('onehot', OneHotEncoder(handle_unknown='ignore'))
     ])
 
@@ -384,3 +385,4 @@ if __name__ == '__main__':
 
     #%%
     experiment.end()
+# %%
