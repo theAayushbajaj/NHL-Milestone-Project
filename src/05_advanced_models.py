@@ -235,18 +235,7 @@ def advanced_question2():
     model, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
     #%%
     # Perform hyperparameter tuning
-    #best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
-    best_hyperparams = {'model__colsample_bytree': 0.8027518366137031,
-                        'model__gamma': 0.26323633422422865,
-                        'model__learning_rate': 0.15,
-                        'model__max_delta_step': 3,
-                        'model__max_depth': 7,
-                        'model__min_child_weight': 3,
-                        'model__n_estimators': 239,
-                        'model__reg_alpha': 0.6978729873816338,
-                        'model__reg_lambda': 3.7646728674809875,
-                        'model__scale_pos_weight': 3.4052468075491102,
-                        'model__subsample': 0.7778593312583509}
+    best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
     #%%
     # Train the model with the best hyperparameters
     model.set_params(**best_hyperparams)
@@ -336,18 +325,7 @@ def advanced_question3():
     model_pipeline, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
     #%%
     # Perform hyperparameter tuning
-    #best_hyperparams = hyperparameter_tuning_question2(model_pipeline,X_train, y_train, X_val, y_val)
-    best_hyperparams = {'model__colsample_bytree': 0.8443652326712037,
-                        'model__gamma': 0.3836159341092055,
-                        'model__learning_rate': 0.11,
-                        'model__max_delta_step': 6,
-                        'model__max_depth': 6,
-                        'model__min_child_weight': 1,
-                        'model__n_estimators': 385,
-                        'model__reg_alpha': 0.4947013395389696,
-                        'model__reg_lambda': 2.5789685513445617,
-                        'model__scale_pos_weight': 3.956297703976836,
-                        'model__subsample': 0.9275047750757387}
+    best_hyperparams = hyperparameter_tuning_question2(model_pipeline,X_train, y_train, X_val, y_val)
     
     #%%
     model_pipeline.set_params(**best_hyperparams)
