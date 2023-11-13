@@ -60,65 +60,83 @@ def advanced_question1(experiment):
     setup, and compare the results to the Logistic Regression baseline. Include a link to the relevant comet.ml entry for this experiment, 
     but you do not need to log this model to the model registry.
     '''
-
+    #%%
     data_baseline = pd.read_csv('data/baseline_model_data.csv')
     train_base, val_base, test_base = utils.split_train_val_test(data_baseline)
 
-    X_train = train_base[['shot distance', 'shot angle']]
-    y_train = train_base['is goal']
+    #%%
+
+    X_train = train_base[['shot_distance', 'shot_angle']]
+    y_train = train_base['is_goal']
+    X_val = val_base[['shot_distance', 'shot_angle']]
+    y_val = val_base['is_goal']
+
+    #%%
 
     features = ['shot_distance', 'shot_angle']
     target = ['is_goal']
+    #%%
     # Define the pipeline
     xg_pipeline = Pipeline(steps=[
         ('scaler', MinMaxScaler()),
         ('classifier', XGBClassifier(use_label_encoder=False, eval_metric='logloss'))
     ])
 
+    # Fit the pipeline
+    xg_pipeline.fit(X_train, y_train)
 
+    #%%
+    model_reg_filename = f"advanced_question1_model.pkl"  # Modify as needed
     # Now call the function with this pipeline
-    utils.plot_calibration_curve(xg_pipeline, features, target, val_base, train_base, experiment)
+    utils.plot_calibration_curve(model = xg_pipeline, 
+                                 features = features, 
+                                 target = target, 
+                                 val = val_base, 
+                                 train = train_base, 
+                                 model_reg_filename = model_reg_filename,
+                                 tags = ["XGBoost_model_baseline", "calibration_curve"], 
+                                 experiment = experiment)
 
 #%%
 def preprocess_question2(data):
     # omitting the non-essential features
     #data['attacking_goals'] = data.apply(lambda x: np.max(x['home goal'] - 1, 0) if x['home team'] == x['team shot'] else np.max(x['away goal']-1,0), axis = 1)
     #data['defending_goals'] = data.apply(lambda x: x['home goal'] if x['home team'] != x['team shot'] else x['away goal'], axis = 1)
-    data['is_home'] = data.apply(lambda x: 1 if x['home team'] == x['team shot'] else 0, axis = 1)
+    data['is_home'] = data.apply(lambda x: 1 if x['home_team_name'] == x['team_name'] else 0, axis = 1)
 
-    data = data.drop(['game date','game id','shooter','goalie','rinkSide','home goal','away goal'],axis=1)
+    data = data.drop(['game_date','game_id','Shooter','Goalie','rinkSide','home_goal','away_goal'],axis=1)
     def fix_strength(df):
         strength = 'even'
-        if df['num player home'] > df['num player away']:
-            strength = 'power_play' if df['team shot'] == df['home team'] else 'short_handed'
-        elif df['num player home'] < df['num player away']:
-            strength = 'short_handed' if df['team shot'] == df['home team'] else 'power_play'
+        if df['num_player_home'] > df['num_player_away']:
+            strength = 'power_play' if df['team_name'] == df['home_team_name'] else 'short_handed'
+        elif df['num_player_home'] < df['num_player_away']:
+            strength = 'short_handed' if df['team_name'] == df['home_team_name'] else 'power_play'
         df['strength'] = strength
         return df
 
     data = data.apply(fix_strength, axis=1)
     
     def parse_period_time(row):
-        minutes, seconds = row['period time'].split(':')
+        minutes, seconds = row['periodTime'].split(':')
         period_time_in_seconds = int(minutes) * 60 + int(seconds)
         return period_time_in_seconds
 
     # Apply the function to the 'period time' column
-    data['period time'] = data.apply(lambda x: parse_period_time(x), axis=1)
+    data['periodTime'] = data.apply(lambda x: parse_period_time(x), axis=1)
 
     # period as categorical
     data['period'] = data['period'].astype('category')
     # empty net as boolean
-    data['empty net'] = data['empty net'].astype('bool')
+    data['emptyNet'] = data['emptyNet'].astype('bool')
     # is_home as boolean
     data['is_home'] = data['is_home'].astype('bool')
 
     # split the data
     train, val, test = utils.split_train_val_test(data)
-    X_train = train.drop(columns=['season','is goal'])
-    y_train = train['is goal']
-    X_val = val.drop(columns=['season','is goal'])
-    y_val = val['is goal']
+    X_train = train.drop(columns=['season','is_goal'])
+    y_train = train['is_goal']
+    X_val = val.drop(columns=['season','is_goal'])
+    y_val = val['is_goal']
 
     # Categorical columns and corresponding transformers
     categorical_cols = X_train.select_dtypes(include=['object', 'bool', 'category']).columns.tolist()
@@ -211,46 +229,39 @@ def hyperparameter_tuning_question2(model, X_train, y_train, X_val, y_val):
 #%%
 def advanced_question2():
     #%%
-    data_fe2 = pd.read_csv('data/data_for_remaining_tasks/df_data.csv') 
+    data_fe2 = pd.read_csv('data/new_data_for_modeling_tasks/df_data.csv') 
 
     #%%
     model, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
     #%%
     # Perform hyperparameter tuning
-    best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
-    # best_hyperparams = {'model__colsample_bytree': 0.8027518366137031,
-    #                     'model__gamma': 0.26323633422422865,
-    #                     'model__learning_rate': 0.15,
-    #                     'model__max_delta_step': 3,
-    #                     'model__max_depth': 7,
-    #                     'model__min_child_weight': 3,
-    #                     'model__n_estimators': 239,
-    #                     'model__reg_alpha': 0.6978729873816338,
-    #                     'model__reg_lambda': 3.7646728674809875,
-    #                     'model__scale_pos_weight': 3.4052468075491102,
-    #                     'model__subsample': 0.7778593312583509}
+    #best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
+    best_hyperparams = {'model__colsample_bytree': 0.8027518366137031,
+                        'model__gamma': 0.26323633422422865,
+                        'model__learning_rate': 0.15,
+                        'model__max_delta_step': 3,
+                        'model__max_depth': 7,
+                        'model__min_child_weight': 3,
+                        'model__n_estimators': 239,
+                        'model__reg_alpha': 0.6978729873816338,
+                        'model__reg_lambda': 3.7646728674809875,
+                        'model__scale_pos_weight': 3.4052468075491102,
+                        'model__subsample': 0.7778593312583509}
     #%%
     # Train the model with the best hyperparameters
     model.set_params(**best_hyperparams)
     model.fit(pd.concat([X_train, X_val]), pd.concat([y_train, y_val]))
-
-    y_pred = model.predict(X_val)
-
-    accuracy = accuracy_score(y_val, y_pred)
-    f1 = f1_score(y_val, y_pred, average='macro')
-    recall = recall_score(y_val, y_pred, average='macro')
-    experiment.log_metrics({"accuracy": accuracy, "f1_score": f1, "recall": recall})
     #%%
-    # Generate and log confusion matrix and classification report
-    confusion_matrix_path = utils.plot_confusion_matrix(y_val, y_pred)
-    classification_report_path = utils.plot_classification_report(y_val, y_pred)
-
-    experiment.log_image(confusion_matrix_path, name='Confusion Matrix')
-    experiment.log_image(classification_report_path, name='Classification Report')
-    #utils.plot_calibration_curve(model, X_val.columns, y_val, experiment)
-    #%%
-    # Finally, log the model itself
-    #experiment.log_model("best_xgboost_model", model)
+    # Plot calibration curve
+    model_reg_filename = f"advanced_question2_model.pkl"
+    utils.plot_calibration_curve(model = model, 
+                                 features = X_train.columns, 
+                                 target = ['is_goal'], 
+                                 val = pd.concat([X_val,y_val],axis=1), 
+                                 train = X_train, 
+                                 model_reg_filename = model_reg_filename,
+                                 tags = ["XGBoost_model_allFeatures", "calibration_curve"], 
+                                 experiment = experiment)
     #%%
     return clf
 #%%
@@ -321,7 +332,7 @@ def feature_selection_question3(model, X_train, X_val, y_train, y_val):
 #%%
 def advanced_question3():
     #%%
-    data_fe2 = pd.read_csv('data/data_for_remaining_tasks/df_data.csv') 
+    data_fe2 = pd.read_csv('data/new_data_for_modeling_tasks/df_data.csv') 
     model_pipeline, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
     #%%
     # Perform hyperparameter tuning
@@ -339,7 +350,7 @@ def advanced_question3():
                         'model__subsample': 0.9275047750757387}
     
     #%%
-    model.set_params(**best_hyperparams)
+    model_pipeline.set_params(**best_hyperparams)
     top_feature_names, top_feature_indices = feature_selection_question3(model_pipeline, X_train, X_val, y_train, y_val)
     #%%
     # Train the model with the best hyperparameters
@@ -354,22 +365,15 @@ def advanced_question3():
     model.fit(np.concatenate((X_train_transformed,X_val_transformed)), pd.concat([y_train,y_val]))
 
     #%%
-    y_pred = model.predict(X_val_transformed)
-
-    accuracy = accuracy_score(y_val, y_pred)
-    f1 = f1_score(y_val, y_pred, average='macro')
-    recall = recall_score(y_val, y_pred, average='macro')
-    experiment.log_metrics({"accuracy": accuracy, "f1_score": f1, "recall": recall})
-    
-    # Generate and log confusion matrix and classification report
-    confusion_matrix_path = utils.plot_confusion_matrix(y_val, y_pred)
-    classification_report_path = utils.plot_classification_report(y_val, y_pred)
-
-    experiment.log_image(confusion_matrix_path, name='Confusion Matrix')
-    experiment.log_image(classification_report_path, name='Classification Report')
-
-    # Finally, log the model itself
-    #experiment.log_model("best_xgboost_model", clf)
+    model_reg_filename = f"advanced_question3_model.pkl"
+    utils.plot_calibration_curve(model = model_pipeline, 
+                                 features = X_train.columns, 
+                                 target = ['is_goal'], 
+                                 val = pd.concat([X_val,y_val],axis=1), 
+                                 train = X_train, 
+                                 model_reg_filename = model_reg_filename,
+                                 tags = ["Tuned_XGBoost_model_allFeatures", "calibration_curve"], 
+                                 experiment = experiment)
     #%%
     return clf
 
