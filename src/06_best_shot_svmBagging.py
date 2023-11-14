@@ -199,7 +199,7 @@ def preprocess_question2(data):
     )
 
     # Define the SVM classifier with class weights and Bagging
-    svm_classifier = SVC(kernel='rbf', class_weight='balanced', probability=True)
+    svm_classifier = SVC(kernel='rbf', class_weight='balanced', probability=True, gamma='auto')
     bagging_clf = BaggingClassifier(base_estimator=svm_classifier, n_estimators=10, random_state=42, n_jobs=-1)
 
     # Create the preprocessing and modeling pipeline with SVM and Bagging
@@ -227,12 +227,12 @@ def hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_v
     # Define the search space for SVM hyperparameters and Bagging hyperparameters
     space = {
         'svm_params': {
-            'C': hp.loguniform('C', np.log(0.001), np.log(100)),
-            'gamma': hp.loguniform('gamma', np.log(0.001), np.log(5)),
+            'C': hp.loguniform('C', np.log(0.1), np.log(10))
+            
             # Add other SVM hyperparameters if needed
         },
         'bagging_params': {
-            'n_estimators': hp.choice('n_estimators', range(10, 100)),
+            'n_estimators': hp.choice('n_estimators', range(10, 500)),
             # Add other Bagging hyperparameters if needed
         }
     }
