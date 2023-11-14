@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import warnings
 from sklearn.calibration import calibration_curve
+from sklearn.calibration import CalibrationDisplay
 from sklearn.metrics import roc_curve, roc_auc_score, accuracy_score, classification_report, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -188,19 +189,23 @@ def plot_calibration_curve(model, features, target, val, train, model_reg_filena
     val['prob'] = model.predict_proba(val[features])[:, 1]
     
     # get the goal rate
-    goal_rate = val.groupby(pd.qcut(val['prob'], 10))[target].mean()
+    # goal_rate = val.groupby(pd.qcut(val['prob'], 10))[target].mean()
+    goal_rate = val.groupby(pd.qcut(val['prob'], 25))[target].mean() * 100
     
     # convert interval index to its midpoint values
-    goal_rate.index = goal_rate.index.map(lambda x: x.mid)
+    # goal_rate.index = goal_rate.index.map(lambda x: x.mid)
+    goal_rate.index = goal_rate.index.map(lambda x: x.right)
+    goal_rate.index = np.array(goal_rate.index) / goal_rate.index.max() * 100
     
     # get the cumulative sum of goals
-    cumulative_goals = val.groupby(pd.qcut(val['prob'], 10))[target].sum().cumsum()
+    # cumulative_goals = val.groupby(pd.qcut(val['prob'], 10))[target].sum().cumsum()
+    cumulative_goals = goal_rate[::-1].cumsum()/goal_rate[::-1].cumsum().max() * 100
     
     # convert to proportion
-    cumulative_goals = cumulative_goals / cumulative_goals.max()
+    # cumulative_goals = cumulative_goals / cumulative_goals.max()
     
     # convert interval index to its midpoint values
-    cumulative_goals.index = cumulative_goals.index.map(lambda x: x.mid)
+    # cumulative_goals.index = cumulative_goals.index.map(lambda x: x.mid)
     
     # get the reliability diagram
     prob_true, prob_pred = calibration_curve(val[target], model.predict_proba(val[features])[:, 1], n_bins=10)
@@ -211,6 +216,8 @@ def plot_calibration_curve(model, features, target, val, train, model_reg_filena
     # Plot and save the goal rate plot
     plt.subplot(2, 2, 1)
     plt.plot(goal_rate)
+    plt.gca().invert_xaxis()
+    plt.gca().set_ylim([0, 100])
     plt.xlabel('Model Probability Percentile')
     plt.ylabel('Goal Rate')
     plt.title('Goal Rate')
@@ -218,6 +225,7 @@ def plot_calibration_curve(model, features, target, val, train, model_reg_filena
     # Plot and save the cumulative goals plot
     plt.subplot(2, 2, 2)
     plt.plot(cumulative_goals)
+    plt.gca().invert_xaxis()
     plt.xlabel('Model Probability Percentile')
     plt.ylabel('Cumulative Goals')
     plt.title('Cumulative Goals')
@@ -232,11 +240,16 @@ def plot_calibration_curve(model, features, target, val, train, model_reg_filena
     plt.title('ROC Curve')
 
     # Plot the reliability diagram
+    #plt.subplot(2, 2, 4)
+    #plt.plot(prob_pred, prob_true)
+    #plt.xlabel('Model Probability')
+    #plt.ylabel('Actual Probability')
+    #plt.title('Reliability Diagram')
+    # Plot the reliability diagram using CalibrationDisplay
     plt.subplot(2, 2, 4)
-    plt.plot(prob_pred, prob_true)
-    plt.xlabel('Model Probability')
-    plt.ylabel('Actual Probability')
+    CalibrationDisplay.from_estimator(model, val[features], val[target], n_bins=10, ax=plt.gca())
     plt.title('Reliability Diagram')
+
 
     # Save the entire figure with all subplots
     complete_figure_filename = 'Metric_curves_advanced_modelling.png'
