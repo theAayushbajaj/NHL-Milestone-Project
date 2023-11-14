@@ -92,7 +92,8 @@ def baseline_question1_2(experiment):
                                  train = train_base, 
                                  model_reg_filename = model_reg_filename,
                                  tags = ["Baseline Logistic", "calibration_curve"], 
-                                 experiment = experiment)
+                                 experiment = experiment,
+                                 legend='q1')
     #%%
 
 
@@ -130,7 +131,8 @@ def baseline_question3(experiment):
                                  train = train_base, 
                                  model_reg_filename = model_reg_filename,
                                  tags = ["Baseline Logistic", "calibration_curve"], 
-                                 experiment = experiment)
+                                 experiment = experiment,
+                                 legend='q1')
     #%%
     # 2)
 
@@ -156,7 +158,8 @@ def baseline_question3(experiment):
                                  train = train_base, 
                                  model_reg_filename = model_reg_filename,
                                  tags = ["Baseline Logistic", "calibration_curve"], 
-                                 experiment = experiment)
+                                 experiment = experiment,
+                                 legend='q2')
     #%%
     # 3)
 
@@ -182,7 +185,8 @@ def baseline_question3(experiment):
                                  train = train_base, 
                                  model_reg_filename = model_reg_filename,
                                  tags = ["Baseline Logistic", "calibration_curve"], 
-                                 experiment = experiment)    
+                                 experiment = experiment,
+                                 legend='q3')    
     #%% 
      
     # 4)
@@ -191,19 +195,28 @@ def baseline_question3(experiment):
     target = ['is_goal']
     #%%
     # Create the pipeline
-    class RandomModel:
+    from sklearn.base import BaseEstimator, ClassifierMixin
+
+    class RandomModel(BaseEstimator, ClassifierMixin):
         def __init__(self):
-            pass
-        
-        def predict_proba(self, X):
-            col_1 = np.random.uniform(size= len(X))
-            col_2 = 1 - col_1
-            return np.column_stack((col_1, col_2))
-        
+            self.classes_ = None  # Initialize classes_ attribute
+
         def fit(self, X, y):
-            pass
+            # Set the classes_ attribute to the unique labels in y
+            self.classes_ = np.unique(y)
+            return self
+
+        def predict_proba(self, X):
+            # This method should return probabilities for each class.
+            proba = np.random.rand(len(X), len(self.classes_))
+            # Normalize rows to sum to 1, so they are valid probabilities
+            return proba / proba.sum(axis=1, keepdims=True)
+
         def predict(self, X):
-            return np.random.choice([0,1], size=len(X))
+            # This method should return the class predictions.
+            # We will predict the class with the highest probability from predict_proba.
+            return np.argmax(self.predict_proba(X), axis=1)
+
 
     # pipeline with random model
     pipeline_random = Pipeline([
@@ -224,7 +237,8 @@ def baseline_question3(experiment):
                                  train = train_base, 
                                  model_reg_filename = model_reg_filename,
                                  tags = ["Baseline Logistic", "calibration_curve"], 
-                                 experiment = experiment)
+                                 experiment = experiment,
+                                 legend='q4')
     
     #%%
     experiment.end()

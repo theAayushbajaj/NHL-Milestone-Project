@@ -160,7 +160,8 @@ def split_train_val_test(data):
     train = train[~val_index]
     return train, val, test
 
-def plot_calibration_curve(model, features, target, val, train, model_reg_filename, tags, experiment):
+def plot_calibration_curve(model, features, target, val, train, model_reg_filename, tags, experiment
+                           , legend = None):
     # initialize the model
     #model = model()
 
@@ -194,7 +195,7 @@ def plot_calibration_curve(model, features, target, val, train, model_reg_filena
     
     # convert interval index to its midpoint values
     # goal_rate.index = goal_rate.index.map(lambda x: x.mid)
-    goal_rate.index = goal_rate.index.map(lambda x: x.right)
+    goal_rate.index = goal_rate.index.map(lambda x: x.left)
     goal_rate.index = np.array(goal_rate.index) / goal_rate.index.max() * 100
     
     # get the cumulative sum of goals
@@ -215,29 +216,36 @@ def plot_calibration_curve(model, features, target, val, train, model_reg_filena
 
     # Plot and save the goal rate plot
     plt.subplot(2, 2, 1)
-    plt.plot(goal_rate)
+    plt.plot(goal_rate, label = legend)
     plt.gca().invert_xaxis()
     plt.gca().set_ylim([0, 100])
     plt.xlabel('Model Probability Percentile')
-    plt.ylabel('Goal Rate')
+    plt.ylabel('Goal Rate (%)')
     plt.title('Goal Rate')
+    if legend:
+        plt.legend()
 
     # Plot and save the cumulative goals plot
     plt.subplot(2, 2, 2)
-    plt.plot(cumulative_goals)
+    plt.plot(cumulative_goals, label = legend)
     plt.gca().invert_xaxis()
+    plt.gca().set_ylim([0, 100])
     plt.xlabel('Model Probability Percentile')
-    plt.ylabel('Cumulative Goals')
-    plt.title('Cumulative Goals')
+    plt.ylabel('Cumulative Goals (%)')
+    plt.title('Cumulative % of Goals')
+    if legend:
+        plt.legend()
 
     # Plot the ROC curve
     plt.subplot(2, 2, 3)
     fpr, tpr, thresholds = roc_curve(val[target], model.predict_proba(val[features])[:, 1])
-    plt.plot(fpr, tpr)
+    plt.plot(fpr, tpr, label = legend)
     plt.plot([0, 1], [0, 1], '--')
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
     plt.title('ROC Curve')
+    if legend:
+        plt.legend()
 
     # Plot the reliability diagram
     #plt.subplot(2, 2, 4)

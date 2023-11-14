@@ -95,7 +95,8 @@ def advanced_question1(experiment):
                                  train = train_base, 
                                  model_reg_filename = model_reg_filename,
                                  tags = ["XGBoost_model_baseline", "calibration_curve"], 
-                                 experiment = experiment)
+                                 experiment = experiment,
+                                 legend='q1')
 
 #%%
 def preprocess_question2(data):
@@ -262,7 +263,8 @@ def advanced_question2():
                                  train = X_train, 
                                  model_reg_filename = model_reg_filename,
                                  tags = ["XGBoost_model_allFeatures", "calibration_curve"], 
-                                 experiment = experiment)
+                                 experiment = experiment,
+                                 legend='q2')
     #%%
     return clf
 #%%
@@ -374,7 +376,8 @@ def advanced_question3():
                                  train = X_train, 
                                  model_reg_filename = model_reg_filename,
                                  tags = ["Tuned_XGBoost_model_allFeatures", "calibration_curve"], 
-                                 experiment = experiment)
+                                 experiment = experiment,
+                                 legend='q3')
     #%%
     return clf
 
