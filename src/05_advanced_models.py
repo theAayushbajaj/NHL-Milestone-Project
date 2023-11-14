@@ -154,7 +154,6 @@ def preprocess_question2(data):
             X_train[col] = X_train[col].astype(int)
             X_val[col] = X_val[col].astype(int)
 
-    print(categorical_cols)
     categorical_transformer = Pipeline(steps=[
         #('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
         ('imputer', SimpleImputer(strategy='most_frequent')),

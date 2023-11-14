@@ -194,7 +194,7 @@ def plot_calibration_curve(model, features, target, val, train, model_reg_filena
     
     # convert interval index to its midpoint values
     # goal_rate.index = goal_rate.index.map(lambda x: x.mid)
-    goal_rate.index = goal_rate.index.map(lambda x: x.right)
+    goal_rate.index = goal_rate.index.map(lambda x: x.left)
     goal_rate.index = np.array(goal_rate.index) / goal_rate.index.max() * 100
     
     # get the cumulative sum of goals
@@ -232,19 +232,14 @@ def plot_calibration_curve(model, features, target, val, train, model_reg_filena
 
     # Plot the ROC curve
     plt.subplot(2, 2, 3)
-    fpr, tpr, thresholds = roc_curve(val[target], model.predict_proba(val[features])[:, 1])
-    plt.plot(fpr, tpr)
+    fpr, tpr, thresholds = roc_curve(val[target], val['prob'])
+    roc_auc = roc_auc_score(val[target], val['prob'])
+    plt.plot(fpr, tpr, label=f'(AUC = {roc_auc:.2f})')
     plt.plot([0, 1], [0, 1], '--')
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
     plt.title('ROC Curve')
 
-    # Plot the reliability diagram
-    #plt.subplot(2, 2, 4)
-    #plt.plot(prob_pred, prob_true)
-    #plt.xlabel('Model Probability')
-    #plt.ylabel('Actual Probability')
-    #plt.title('Reliability Diagram')
     # Plot the reliability diagram using CalibrationDisplay
     plt.subplot(2, 2, 4)
     CalibrationDisplay.from_estimator(model, val[features], val[target], n_bins=10, ax=plt.gca())
