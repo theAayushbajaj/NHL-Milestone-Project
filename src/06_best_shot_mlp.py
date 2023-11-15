@@ -15,6 +15,7 @@ import shap
 from sklearn.base import clone
 # Models
 from xgboost import XGBClassifier
+from sklearn.neural_network import MLPClassifier
 
 # Metrics
 from sklearn.metrics import (
@@ -51,14 +52,6 @@ from hyperopt import hp, fmin, tpe, Trials, space_eval
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import f1_score
 
-# SVM BAGGING
-from sklearn.svm import SVC
-from sklearn.ensemble import BaggingClassifier
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
-from sklearn.compose import ColumnTransformer
-from sklearn.impute import SimpleImputer
-from sklearn.pipeline import Pipeline
-
 #%%
 # get api key from text file
 COMET_API_KEY = open('comet_api_key.txt').read().strip()
@@ -66,12 +59,11 @@ COMET_API_KEY = open('comet_api_key.txt').read().strip()
 # Create an experiment with your api key
 experiment = Experiment(
     api_key=COMET_API_KEY,
-    project_name="Best Shot model svmBagging",
+    project_name="Best Shot model mlp",
     workspace="2nd milestone",
     log_code=True
 )
-experiment.log_code(file_name='06_best_shot.py')
-#%%
+experiment.log_code(file_name='06_best_shot_mlp.py')
 
 
 #%%
@@ -147,43 +139,43 @@ def preprocess_question2(data):
         remainder='drop'  # This drops the columns that we haven't transformed
     )
 
-    # Define the SVM classifier with class weights and Bagging
-    svm_classifier = SVC(kernel='rbf', class_weight='balanced', probability=True, gamma='auto')
-    bagging_clf = BaggingClassifier(base_estimator=svm_classifier, n_estimators=10, random_state=42, n_jobs=-1)
-
-    # Create the preprocessing and modeling pipeline with SVM and Bagging
-    model_pipeline = Pipeline(steps=[
+    # Create the preprocessing and modeling pipeline with MLPClassifier
+    model_pipeline = ImbPipeline(steps=[
         ('preprocessor', preprocessor),
-        ('model', bagging_clf)
+        ('smote', SMOTE(random_state=42)),
+        ('model', MLPClassifier(random_state=42))
     ])
 
     return model_pipeline, X_train, y_train, X_val, y_val
 
 #%%
-def hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_val):
+def hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_val, 
+                                    loss_metric = 'f1_score_macro'):
     def objective(params):
-        # Update the parameters of the base estimator (SVM) in the Bagging Classifier
-        model_pipeline.named_steps['model'].base_estimator.set_params(**params['svm_params'])
-        # Update the parameters of the Bagging Classifier
-        model_pipeline.named_steps['model'].set_params(**params['bagging_params'])
+        # Update the MLP's parameters
+        model_pipeline.named_steps['model'].set_params(**params)
         model_pipeline.fit(X_train, y_train)
 
         y_pred = model_pipeline.predict(X_val)
-        loss = -f1_score(y_val, y_pred, average='macro')
+
+        if loss_metric == 'f1_score_macro':
+            loss = -f1_score(y_val, y_pred, average='macro')
+        else:
+            # Compute F1 score for class 1
+            f1_class_1 = f1_score(y_val, y_pred, labels=[1], average=None)
+            # As hyperopt minimizes the objective, use negative F1 score
+            loss = -f1_class_1[0]  # Assuming class 1 is at index 0
+
 
         return {'loss': loss, 'status': STATUS_OK}
 
-    # Define the search space for SVM hyperparameters and Bagging hyperparameters
+    # Define the search space for MLP hyperparameters
     space = {
-        'svm_params': {
-            'C': hp.loguniform('C', np.log(0.1), np.log(10))
-            
-            # Add other SVM hyperparameters if needed
-        },
-        'bagging_params': {
-            'n_estimators': hp.choice('n_estimators', range(10, 500)),
-            # Add other Bagging hyperparameters if needed
-        }
+        'hidden_layer_sizes': hp.choice('hidden_layer_sizes', [(50,), (100,), (50, 50), (100, 100)]),
+        'activation': hp.choice('activation', ['tanh', 'relu']),
+        'solver': hp.choice('solver', ['sgd', 'adam']),
+        'alpha': hp.uniform('alpha', 0.0001, 0.05),
+        'learning_rate_init': hp.uniform('learning_rate_init', 0.001, 0.01),
     }
     # Initialize Trials object to keep track of results
     trials = Trials()
@@ -193,19 +185,20 @@ def hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_v
         fn=objective,
         space=space,
         algo=tpe.suggest,
-        max_evals=1,
+        max_evals=10,
         trials=trials
     )
 
     # After finding the best hyperparameters, log them
-    best_hyperparams = space_eval(space, best)
-    best_score = -trials.best_trial['result']['loss']
+    #best_hyperparams = space_eval(space, best)
+    #best_score = -trials.best_trial['result']['loss']
 
     # After finding the best hyperparameters, log them
     best_hyperparams = space_eval(space, best)
     best_score = -trials.best_trial['result']['loss']
     experiment.log_parameters(best_hyperparams)
     experiment.log_metric("best_score", best_score)
+    experiment.log_metric('loss_metric', loss_metric)
 
     return best_hyperparams
 
@@ -226,35 +219,37 @@ def advanced_question2():
     #%%
 
     # Perform hyperparameter tuning
-    best_hyperparams = hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_val)
+    best_hyperparams = hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_val,
+                                                       loss_metric='f1_class_1')
 
     #%%
 
 
-    # Set the best hyperparameters to the SVM and Bagging Classifier in the pipeline
-    svm_params = best_hyperparams['svm_params']
-    bagging_params = best_hyperparams['bagging_params']
-    model_pipeline.named_steps['model'].base_estimator.set_params(**svm_params)
-    model_pipeline.named_steps['model'].set_params(**bagging_params)
+    # Set the best hyperparameters to the model in the pipeline
+    model_pipeline.named_steps['model'].set_params(**best_hyperparams)
 
     # Train the model with the best hyperparameters
     model_pipeline.fit(pd.concat([X_train, X_val]), pd.concat([y_train, y_val]))
     #%%
 
-    # Plot calibration curve (ensure compatibility with SVM)
-    model_reg_filename = f"advanced_question2_svm_bagging_model.pkl"
+    # Plot calibration curve (make sure the function is adapted for Random Forest)
+    model_reg_filename = f"advanced_question2_rf_model.pkl"
     utils.plot_calibration_curve(model=model_pipeline, 
                                  features=X_train.columns, 
                                  target=['is_goal'], 
                                  val=pd.concat([X_val, y_val], axis=1), 
                                  train=X_train, 
                                  model_reg_filename=model_reg_filename,
-                                 tags=["SVM_Bagging_model_allFeatures", "calibration_curve"], 
-                                 experiment=experiment)
+                                 tags=["NeuralNetwork_model_allFeatures", "calibration_curve"], 
+                                 experiment=experiment,
+                                 legend='Neural Network')
+    
+
     #%%
     return model_pipeline
 
 
-#%%
+ #%%
 experiment.end()
+
 # %%
