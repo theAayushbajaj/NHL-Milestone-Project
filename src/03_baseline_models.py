@@ -134,7 +134,6 @@ def baseline_question2(experiment):
 
 #%%
 def baseline_question3(experiment):
-    #%%
     class RandomModel:
         def __init__(self):
             pass
@@ -250,6 +249,7 @@ def baseline_question3(experiment):
     # Log the figure to Comet
     experiment.log_image('all_metrics_combined.png', name='Combined Metrics Plot')
     experiment.add_tags(["Baseline Logistic Question 3", "Combined curves of 4 models"])
+
     #%%
 if __name__ == "__main__":
     baseline_question1(experiment)

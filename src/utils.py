@@ -160,7 +160,8 @@ def split_train_val_test(data):
     train = train[~val_index]
     return train, val, test
 
-def plot_calibration_curve(model, features, target, val, train, model_reg_filename, tags, experiment):
+def plot_calibration_curve(model, features, target, val, train, model_reg_filename, tags, experiment
+                           , legend = True):
     # initialize the model
     #model = model()
 
@@ -215,20 +216,25 @@ def plot_calibration_curve(model, features, target, val, train, model_reg_filena
 
     # Plot and save the goal rate plot
     plt.subplot(2, 2, 1)
-    plt.plot(goal_rate)
+    plt.plot(goal_rate, label = legend)
     plt.gca().invert_xaxis()
     plt.gca().set_ylim([0, 100])
     plt.xlabel('Model Probability Percentile')
-    plt.ylabel('Goal Rate')
+    plt.ylabel('Goal Rate (%)')
     plt.title('Goal Rate')
+    if legend:
+        plt.legend()
 
     # Plot and save the cumulative goals plot
     plt.subplot(2, 2, 2)
-    plt.plot(cumulative_goals)
+    plt.plot(cumulative_goals, label = legend)
     plt.gca().invert_xaxis()
+    plt.gca().set_ylim([0, 100])
     plt.xlabel('Model Probability Percentile')
-    plt.ylabel('Cumulative Goals')
-    plt.title('Cumulative Goals')
+    plt.ylabel('Cumulative Goals (%)')
+    plt.title('Cumulative % of Goals')
+    if legend:
+        plt.legend()
 
     # Plot the ROC curve
     plt.subplot(2, 2, 3)
@@ -239,6 +245,8 @@ def plot_calibration_curve(model, features, target, val, train, model_reg_filena
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
     plt.title('ROC Curve')
+    if legend:
+        plt.legend()
 
     # Plot the reliability diagram using CalibrationDisplay
     plt.subplot(2, 2, 4)
