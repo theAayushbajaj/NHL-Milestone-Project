@@ -15,6 +15,8 @@ import shap
 from sklearn.base import clone
 # Models
 from xgboost import XGBClassifier
+from imblearn.ensemble import BalancedRandomForestClassifier
+
 
 # Metrics
 from sklearn.metrics import (
@@ -58,57 +60,13 @@ COMET_API_KEY = open('comet_api_key.txt').read().strip()
 # Create an experiment with your api key
 experiment = Experiment(
     api_key=COMET_API_KEY,
-    project_name="Best Shot model 1",
+    project_name="Best Shot model Balanced RF",
     workspace="2nd milestone",
     log_code=True
 )
-experiment.log_code(file_name='06_best_shot.py')
+experiment.log_code(file_name='06_best_shot_balanced_RF.py')
 #%%
-def advanced_question1(experiment):
-    '''
-    . Train an XGBoost classifier using the same dataset using only the distance and angle features (similar to part 3). 
-    Don’t worry about hyperparameter tuning yet, this will just serve as a comparison to the baseline before we add more features. 
-    Add the corresponding curves to the four figures in your blog post. Briefly (few sentences) discuss your training/validation 
-    setup, and compare the results to the Logistic Regression baseline. Include a link to the relevant comet.ml entry for this experiment, 
-    but you do not need to log this model to the model registry.
-    '''
-    #%%
-    data_baseline = pd.read_csv('data/baseline_model_data.csv')
-    train_base, val_base, test_base = utils.split_train_val_test(data_baseline)
 
-    #%%
-
-    X_train = train_base[['shot_distance', 'shot_angle']]
-    y_train = train_base['is_goal']
-    X_val = val_base[['shot_distance', 'shot_angle']]
-    y_val = val_base['is_goal']
-
-    #%%
-
-    features = ['shot_distance', 'shot_angle']
-    target = ['is_goal']
-    #%%
-    # Define the pipeline with SMOTE and Random Forest
-    rf_smote_pipeline = ImbPipeline(steps=[
-        ('scaler', MinMaxScaler()),
-        ('smote', SMOTE(random_state=42)),  # Apply SMOTE
-        ('classifier', RandomForestClassifier(random_state=42))  # Random Forest Classifier
-    ])
-
-    # Fit the pipeline
-    rf_smote_pipeline.fit(X_train, y_train)
-
-    #%%
-    model_reg_filename = f"bestshot_model_01.pkl"  # Modify as needed
-    # Now call the function with this pipeline
-    utils.plot_calibration_curve(model = rf_smote_pipeline, 
-                                 features = features, 
-                                 target = target, 
-                                 val = val_base, 
-                                 train = train_base, 
-                                 model_reg_filename = model_reg_filename,
-                                 tags = ["rfSMOTE_model_baseline", "calibration_curve"], 
-                                 experiment = experiment)
 
 #%%
 def preprocess_question2(data):
@@ -183,34 +141,42 @@ def preprocess_question2(data):
         remainder='drop'  # This drops the columns that we haven't transformed
     )
 
-    # Create the preprocessing and modeling pipeline with Random Forest
-    model_pipeline = ImbPipeline(steps=[
+    # Create the preprocessing and modeling pipeline with Balanced Random Forest
+    model_pipeline = Pipeline(steps=[
         ('preprocessor', preprocessor),
-        ('smote', SMOTE(random_state=42)),
-        ('model', RandomForestClassifier(random_state=42))
+        ('model', BalancedRandomForestClassifier(random_state=42))
     ])
 
     return model_pipeline, X_train, y_train, X_val, y_val
 
 #%%
-def hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_val):
+def hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_val, 
+                                    loss_metric = 'f1_score_macro'):
     def objective(params):
-        # Update only the model's parameters
+        # Update the MLP's parameters
         model_pipeline.named_steps['model'].set_params(**params)
         model_pipeline.fit(X_train, y_train)
 
         y_pred = model_pipeline.predict(X_val)
-        loss = -f1_score(y_val, y_pred, average='macro')
+
+        if loss_metric == 'f1_score_macro':
+            loss = -f1_score(y_val, y_pred, average='macro')
+        else:
+            # Compute F1 score for class 1
+            f1_class_1 = f1_score(y_val, y_pred, labels=[1], average=None)
+            # As hyperopt minimizes the objective, use negative F1 score
+            loss = -f1_class_1[0]  # Assuming class 1 is at index 0
+
 
         return {'loss': loss, 'status': STATUS_OK}
 
     # Define the search space for RandomForest hyperparameters
     space = {
         'n_estimators': hp.choice('n_estimators', range(50, 500)),
-        'max_depth': hp.choice('max_depth', range(3, 14)),
+        'max_depth': hp.choice('max_depth', [None] + list(range(3, 14))),
         'min_samples_split': hp.choice('min_samples_split', range(2, 10)),
         'min_samples_leaf': hp.choice('min_samples_leaf', range(1, 5)),
-        'max_features': hp.choice('max_features', ['auto', 'sqrt', 'log2']),
+        'max_features': hp.choice('max_features', ['sqrt', 'log2', None]),  # Removed 'auto'
     }
     # Initialize Trials object to keep track of results
     trials = Trials()
@@ -253,7 +219,8 @@ def advanced_question2():
     #%%
 
     # Perform hyperparameter tuning
-    best_hyperparams = hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_val)
+    best_hyperparams = hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_val,
+                                                       loss_metric='f1_score_macro')
 
     #%%
 
@@ -274,72 +241,14 @@ def advanced_question2():
                                  train=X_train, 
                                  model_reg_filename=model_reg_filename,
                                  tags=["RandomForest_model_allFeatures", "calibration_curve"], 
-                                 experiment=experiment)
+                                 experiment=experiment,
+                                 legend='RandomForest')
+    
+    #%%
+
     #%%
     return model_pipeline
-#%%
-def feature_selection_question3(model, X_train, X_val, y_train, y_val):
-    # Fit the model pipeline with your training data
-    model.fit(X_train, y_train)
-    
-    # Extract the fitted XGBClassifier from the pipeline
-    fitted_model = model.named_steps['model']
-    
-    # Create a SHAP TreeExplainer using the fitted XGBClassifier model
-    explainer = shap.TreeExplainer(fitted_model)
-    
-    # Transform the features (X_train) using the preprocessor to get the transformed features
-    X_train_transformed = model.named_steps['preprocessor'].transform(X_train)
-    
-    # Compute SHAP values - this can be compute-intensive for large datasets
-    shap_values = explainer.shap_values(X_train_transformed, approximate=True)
-    
-    # Get the feature names after preprocessing
-    feature_names = model.named_steps['preprocessor'].get_feature_names_out()
-    
-    plt.switch_backend('Agg')
 
-    # Your SHAP calculation code
-
-    # Visualize the SHAP values with a beeswarm plot
-    shap.summary_plot(shap_values, X_train_transformed, plot_type='dot', feature_names=feature_names)
-
-    # Ensure that the figure is explicitly defined and saved
-    fig = plt.gcf()  # Get the current figure before saving it
-    fig.savefig('shap_beeswarm_plot.png', bbox_inches='tight')  # Use bbox_inches to include all plot elements
-    plt.close(fig)  # Close the plot to free up memory
-    # Log the SHAP summary plot to Comet
-    experiment.log_image('shap_beeswarm_plot.png', name='SHAP Beeswarm Plot')
-
-    # Return the top 20 features based on SHAP values
-    # For multi-class classification, sum the SHAP values across all classes
-    shap_sum = np.abs(shap_values).mean(axis=0)
-    if isinstance(shap_sum, list):  # Multi-class case
-        shap_sum = np.sum(np.array(shap_sum), axis=0)
-
-    # Create a series of SHAP values
-    shap_series = pd.Series(shap_sum, index=feature_names).sort_values(ascending=False)
-    top_features_indices = np.argsort(-shap_sum)[:10]  # Get indices of top features
-
-    # Select the top features for X_train and X_val
-    X_val_transformed = model.named_steps['preprocessor'].transform(X_val)
-    if isinstance(X_train_transformed, np.ndarray):
-        X_train_top_features = X_train_transformed[:, top_features_indices]
-    else:
-        X_train_top_features = X_train_transformed.toarray()[:, top_features_indices]
-
-    if isinstance(X_val_transformed, np.ndarray):
-        X_val_top_features = X_val_transformed[:, top_features_indices]
-    else:
-        X_val_top_features = X_val_transformed.toarray()[:, top_features_indices]
-
-    # Remove 'num__' and 'cat__' prefixes from the feature names
-    def clean_feature_name(fname):
-        return fname.replace('num__', '').replace('cat__', '')
-
-    # Get clean top feature names
-    top_feature_names = [clean_feature_name(feature_names[i]) for i in top_features_indices]
-    return top_feature_names, top_features_indices
 
     #%%
     experiment.end()
