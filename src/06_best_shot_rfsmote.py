@@ -58,58 +58,13 @@ COMET_API_KEY = open('comet_api_key.txt').read().strip()
 # Create an experiment with your api key
 experiment = Experiment(
     api_key=COMET_API_KEY,
-    project_name="Best Shot model 1",
+    project_name="Best Shot model rf",
     workspace="2nd milestone",
     log_code=True
 )
 experiment.log_code(file_name='06_best_shot.py')
 #%%
-def advanced_question1(experiment):
-    '''
-    . Train an XGBoost classifier using the same dataset using only the distance and angle features (similar to part 3). 
-    Don’t worry about hyperparameter tuning yet, this will just serve as a comparison to the baseline before we add more features. 
-    Add the corresponding curves to the four figures in your blog post. Briefly (few sentences) discuss your training/validation 
-    setup, and compare the results to the Logistic Regression baseline. Include a link to the relevant comet.ml entry for this experiment, 
-    but you do not need to log this model to the model registry.
-    '''
-    #%%
-    data_baseline = pd.read_csv('data/baseline_model_data.csv')
-    train_base, val_base, test_base = utils.split_train_val_test(data_baseline)
 
-    #%%
-
-    X_train = train_base[['shot_distance', 'shot_angle']]
-    y_train = train_base['is_goal']
-    X_val = val_base[['shot_distance', 'shot_angle']]
-    y_val = val_base['is_goal']
-
-    #%%
-
-    features = ['shot_distance', 'shot_angle']
-    target = ['is_goal']
-    #%%
-    # Define the pipeline with SMOTE and Random Forest
-    rf_smote_pipeline = ImbPipeline(steps=[
-        ('scaler', MinMaxScaler()),
-        ('smote', SMOTE(random_state=42)),  # Apply SMOTE
-        ('classifier', RandomForestClassifier(random_state=42))  # Random Forest Classifier
-    ])
-
-    # Fit the pipeline
-    rf_smote_pipeline.fit(X_train, y_train)
-
-    #%%
-    model_reg_filename = f"bestshot_model_01.pkl"  # Modify as needed
-    # Now call the function with this pipeline
-    utils.plot_calibration_curve(model = rf_smote_pipeline, 
-                                 features = features, 
-                                 target = target, 
-                                 val = val_base, 
-                                 train = train_base, 
-                                 model_reg_filename = model_reg_filename,
-                                 tags = ["rfSMOTE_model_baseline", "calibration_curve"], 
-                                 experiment = experiment,
-                                 legend='RfSMOTE')
 
 #%%
 def preprocess_question2(data):
@@ -194,14 +149,23 @@ def preprocess_question2(data):
     return model_pipeline, X_train, y_train, X_val, y_val
 
 #%%
-def hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_val):
+def hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_val, 
+                                    loss_metric = 'f1_score_macro'):
     def objective(params):
-        # Update only the model's parameters
+        # Update the MLP's parameters
         model_pipeline.named_steps['model'].set_params(**params)
         model_pipeline.fit(X_train, y_train)
 
         y_pred = model_pipeline.predict(X_val)
-        loss = -f1_score(y_val, y_pred, average='macro')
+
+        if loss_metric == 'f1_score_macro':
+            loss = -f1_score(y_val, y_pred, average='macro')
+        else:
+            # Compute F1 score for class 1
+            f1_class_1 = f1_score(y_val, y_pred, labels=[1], average=None)
+            # As hyperopt minimizes the objective, use negative F1 score
+            loss = -f1_class_1[0]  # Assuming class 1 is at index 0
+
 
         return {'loss': loss, 'status': STATUS_OK}
 
@@ -254,7 +218,8 @@ def advanced_question2():
     #%%
 
     # Perform hyperparameter tuning
-    best_hyperparams = hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_val)
+    best_hyperparams = hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_val,
+                                                       loss_metric='f1_score_macro')
 
     #%%
 
@@ -277,6 +242,9 @@ def advanced_question2():
                                  tags=["RandomForest_model_allFeatures", "calibration_curve"], 
                                  experiment=experiment,
                                  legend='RandomForest')
+    
+    #%%
+    experiment.end()
     #%%
     return model_pipeline
 
