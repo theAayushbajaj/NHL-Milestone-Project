@@ -134,6 +134,7 @@ def baseline_question2(experiment):
 
 #%%
 def baseline_question3(experiment):
+    #%%
     class RandomModel:
         def __init__(self):
             pass
@@ -222,14 +223,10 @@ def baseline_question3(experiment):
     # Finalize plots with appropriate labels, titles, and axis adjustments
     for ax in axs[0, :]:  # For top row subplots
         ax.invert_xaxis()
-        ax.set_xlabel('Model Probability Percentile')
-        ax.set_ylabel('Goal Rate')
         ax.set_ylim([0, 100])
 
     for ax in axs[1, :]:  # For bottom row subplots
         ax.plot([0, 1], [0, 1], 'k--')
-        ax.set_xlabel('False Positive Rate')
-        ax.set_ylabel('True Positive Rate')
 
     # Set titles
     axs[0, 0].set_title('Goal Rate by Probability Percentile')
@@ -237,6 +234,19 @@ def baseline_question3(experiment):
     axs[1, 0].set_title('ROC Curve')
     axs[1, 1].set_title('Reliability Diagram')
 
+    # set x and y labels
+    axs[0, 0].set_xlabel('Model Probability Percentile')
+    axs[0, 0].set_ylabel('Goal Rate (%)')
+
+    axs[0, 1].set_xlabel('Model Probability Percentile')
+    axs[0, 1].set_ylabel('Cumulative Goals (%)')
+
+    axs[1, 0].set_xlabel('False Positive Rate')
+    axs[1, 0].set_ylabel('True Positive Rate')
+
+    axs[1, 1].set_xlabel('Model Probability')
+    axs[1, 1].set_ylabel('Fraction of Positives')
+    
     # Add legends
     for ax in axs.flatten():
         ax.legend(loc='best')

@@ -94,9 +94,8 @@ def advanced_question1(experiment):
                                  val = val_base, 
                                  train = train_base, 
                                  model_reg_filename = model_reg_filename,
-                                 tags = ["XGBoost_model_baseline", "calibration_curve"], 
-                                 experiment = experiment,
-                                 legend='q1')
+                                 tags = ["Advanced Question 1","XGBoost_model_baseline", "calibration_curve"], 
+                                 experiment = experiment)
 
 #%%
 def preprocess_question2(data):
@@ -250,9 +249,9 @@ def advanced_question2():
                                  val = pd.concat([X_val,y_val],axis=1), 
                                  train = X_train, 
                                  model_reg_filename = model_reg_filename,
-                                 tags = ["XGBoost_model_allFeatures", "calibration_curve"], 
+                                 tags = ["Advanced Q2","XGBoost_model_allFeatures", "calibration_curve"], 
                                  experiment = experiment,
-                                 legend='q2')
+                                 legend = 'XGBoost')
     #%%
     return clf
 #%%
@@ -320,6 +319,54 @@ def feature_selection_question3(model, X_train, X_val, y_train, y_val):
     return top_feature_names, top_features_indices
 
 
+def hyperparameter_tuning_question2(model, X_train, y_train, X_val, y_val):
+    def objective(params):
+        model.set_params(**params)
+        model.fit(X_train, y_train)
+
+        y_pred = model.predict(X_val)
+        loss = -f1_score(y_val, y_pred, average='macro')
+
+        return {'loss': loss, 'status': STATUS_OK}
+
+    # Define the search space for hyperparameters
+    space = {
+        'model__n_estimators': hp.choice('model__n_estimators', range(50, 500)),
+        'model__learning_rate': hp.quniform('model__learning_rate', 0.01, 0.2, 0.01),
+        'model__max_depth': hp.choice('model__max_depth', range(3, 14)),
+        'model__min_child_weight': hp.choice('model__min_child_weight', range(1, 10)),
+        'model__gamma': hp.uniform('model__gamma', 0.0, 0.5),
+        'model__subsample': hp.uniform('model__subsample', 0.5, 1.0),
+        'model__colsample_bytree': hp.uniform('model__colsample_bytree', 0.5, 1.0),
+        'model__reg_alpha': hp.uniform('model__reg_alpha', 0.0, 1.0),
+        'model__reg_lambda': hp.uniform('model__reg_lambda', 1.0, 4.0),
+        'model__scale_pos_weight': hp.uniform('model__scale_pos_weight', 1.0, 10.0),
+        'model__max_delta_step': hp.choice('model__max_delta_step', range(1, 10)),
+    }
+    # Initialize Trials object to keep track of results
+    trials = Trials()
+
+    # Run the optimization
+    best = fmin(
+        fn=objective,
+        space=space,
+        algo=tpe.suggest,
+        max_evals=100,
+        trials=trials
+    )
+
+    # After finding the best hyperparameters, log them
+    best_hyperparams = space_eval(space, best)
+    best_score = -trials.best_trial['result']['loss']
+
+    # After finding the best hyperparameters, log them
+    best_hyperparams = space_eval(space, best)
+    best_score = -trials.best_trial['result']['loss']
+    experiment.log_parameters(best_hyperparams)
+    experiment.log_metric("best_score", best_score)
+
+    return best_hyperparams
+    
 #%%
 def advanced_question3():
     #%%
@@ -327,11 +374,22 @@ def advanced_question3():
     model_pipeline, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
     #%%
     # Perform hyperparameter tuning
-    best_hyperparams = hyperparameter_tuning_question2(model_pipeline,X_train, y_train, X_val, y_val)
-    
+    #best_hyperparams = hyperparameter_tuning_question2(model_pipeline,X_train, y_train, X_val, y_val)
+    best_hyperparams = {'model__colsample_bytree': 0.882162152864482,
+ 'model__gamma': 0.16487432807819533,
+ 'model__learning_rate': 0.1,
+ 'model__max_delta_step': 5,
+ 'model__max_depth': 5,
+ 'model__min_child_weight': 3,
+ 'model__n_estimators': 334,
+ 'model__reg_alpha': 0.617947326072274,
+ 'model__reg_lambda': 3.271358327330144,
+ 'model__scale_pos_weight': 4.001431354425059,
+ 'model__subsample': 0.9752552528311702}
     #%%
     model_pipeline.set_params(**best_hyperparams)
     top_feature_names, top_feature_indices = feature_selection_question3(model_pipeline, X_train, X_val, y_train, y_val)
+
     #%%
     # Train the model with the best hyperparameters
     # First, fit and transform with the preprocessor
@@ -342,6 +400,19 @@ def advanced_question3():
     model = clone(model_pipeline.named_steps['model'])
     X_train_transformed = X_train_transformed[:,top_feature_indices]
     X_val_transformed = preprocessor.transform(X_val).toarray()[:,top_feature_indices]
+    #best_hyperparams = hyperparameter_tuning_question2(model,X_train_transformed, y_train, X_val_transformed, y_val)
+    best_hyperparams = {'model__colsample_bytree': 0.6245922639323109,
+ 'model__gamma': 0.09214513167844679,
+ 'model__learning_rate': 0.06,
+ 'model__max_delta_step': 7,
+ 'model__max_depth': 8,
+ 'model__min_child_weight': 9,
+ 'model__n_estimators': 102,
+ 'model__reg_alpha': 0.05863728144662128,
+ 'model__reg_lambda': 3.7110567498401386,
+ 'model__scale_pos_weight': 3.808135589700332,
+ 'model__subsample': 0.9487052110417219}
+    model.set_params(**best_hyperparams)
     model.fit(np.concatenate((X_train_transformed,X_val_transformed)), pd.concat([y_train,y_val]))
 
     #%%
@@ -352,9 +423,9 @@ def advanced_question3():
                                  val = pd.concat([X_val,y_val],axis=1), 
                                  train = X_train, 
                                  model_reg_filename = model_reg_filename,
-                                 tags = ["Tuned_XGBoost_model_allFeatures", "calibration_curve"], 
+                                 tags = ["Advanced Q3","Tuned_XGBoost_model_allFeatures", "calibration_curve"], 
                                  experiment = experiment,
-                                 legend='q3')
+                                 legend='XGBoost')
     #%%
     return clf
 
