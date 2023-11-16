@@ -104,8 +104,8 @@ def split_train_val_test(data):
     train = train[~val_index]
     return train, val, test
 
-def plot_calibration_curve(model, features, target, val, train, model_reg_filename, tags, experiment
-                           , legend = True):
+def plot_calibration_curve(model, features, target, val, train, tags, experiment
+                           , legend = True, model_reg_filename=None):
     # initialize the model
     #model = model()
 
@@ -125,10 +125,11 @@ def plot_calibration_curve(model, features, target, val, train, model_reg_filena
     experiment.log_image(confusion_matrix_path, name='Confusion Matrix')
     experiment.log_image(classification_report_path, name='Classification Report')
 
-    # Log the model to the experiment
-    joblib.dump(model, model_reg_filename)
-    experiment.log_model(model_reg_filename, model_reg_filename)
-    experiment.add_tags(tags)
+    if model_reg_filename:
+        # Log the model to the experiment
+        joblib.dump(model, model_reg_filename)
+        experiment.log_model(model_reg_filename, model_reg_filename)
+        experiment.add_tags(tags)
 
     # get the probability of the prediction
     val['prob'] = model.predict_proba(val[features])[:, 1]
