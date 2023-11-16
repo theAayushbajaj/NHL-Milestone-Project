@@ -15,6 +15,8 @@ import shap
 from sklearn.base import clone
 # Models
 from xgboost import XGBClassifier
+from imblearn.ensemble import BalancedRandomForestClassifier
+
 
 # Metrics
 from sklearn.metrics import (
@@ -51,6 +53,18 @@ from hyperopt import hp, fmin, tpe, Trials, space_eval
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import f1_score
 
+import tensorflow as tf
+import keras
+from keras import layers
+
+from keras.models import Sequential
+from keras.layers import Dense, Dropout
+from scikeras.wrappers import KerasClassifier, KerasRegressor
+
+
+
+
+
 #%%
 # get api key from text file
 COMET_API_KEY = open('comet_api_key.txt').read().strip()
@@ -58,12 +72,23 @@ COMET_API_KEY = open('comet_api_key.txt').read().strip()
 # Create an experiment with your api key
 experiment = Experiment(
     api_key=COMET_API_KEY,
-    project_name="Best Shot model rf",
+    project_name="Best Shot model NN tensorflow",
     workspace="2nd milestone",
     log_code=True
 )
-experiment.log_code(file_name='06_best_shot.py')
+experiment.log_code(file_name='06_best_shot_tfNN.py')
 #%%
+
+def create_model(input_dim, layers=[64, 32], dropout_rate=0.5, optimizer='adam'):
+    model = Sequential()
+    model.add(Dense(layers[0], input_dim=input_dim, activation='relu'))
+    model.add(Dropout(dropout_rate))
+    for layer_size in layers[1:]:
+        model.add(Dense(layer_size, activation='relu'))
+        model.add(Dropout(dropout_rate))
+    model.add(Dense(1, activation='sigmoid'))  # Binary classification
+    model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
+    return model
 
 
 #%%
@@ -138,45 +163,67 @@ def preprocess_question2(data):
         ],
         remainder='drop'  # This drops the columns that we haven't transformed
     )
+    
 
-    # Create the preprocessing and modeling pipeline with Random Forest
-    model_pipeline = ImbPipeline(steps=[
+    # Fit the preprocessor on a subset of the training data
+    preprocessor.fit(X_train[:1_000])  # Adjust the slice as needed
+
+    # Transform a sample and get the input dimension
+    sample_transformed = preprocessor.transform(X_train[:1])
+    input_dim = sample_transformed.shape[1]
+
+
+    # Define the input dimension for the neural network
+    #input_dim = len(numerical_cols) + len(categorical_cols) * number_of_categories_per_categorical_col  # Adjust accordingly
+
+    # Create the preprocessing and modeling pipeline with KerasClassifier
+    model_pipeline = Pipeline(steps=[
         ('preprocessor', preprocessor),
-        #('smote', SMOTE(random_state=42)),
-        ('model', RandomForestClassifier(random_state=42))
+        ('model', KerasClassifier(build_fn=create_model, input_dim=input_dim, verbose=0))
     ])
 
     return model_pipeline, X_train, y_train, X_val, y_val
 
 #%%
-def hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_val, 
-                                    loss_metric = 'f1_score_macro'):
+def hyperparameter_tuning_question2(model_pipeline, preprocessor, X_train, y_train, X_val, y_val, loss_metric='f1_score_macro'):
     def objective(params):
-        # Update the MLP's parameters
-        model_pipeline.named_steps['model'].set_params(**params)
-        model_pipeline.fit(X_train, y_train)
 
-        y_pred = model_pipeline.predict(X_val)
+        # Fit the preprocessor on a subset of the training data
+        preprocessor.fit(X_train[:1_000])  # Adjust the slice as needed
 
+        # Transform a sample and get the input dimension
+        sample_transformed = preprocessor.transform(X_train[:1])
+        input_dim = sample_transformed.shape[1]
+
+        # Create a new KerasClassifier with current parameters
+        model = KerasClassifier(build_fn=lambda: create_model(input_dim, **params), epochs=10, batch_size=32, verbose=0)
+
+        # Apply the preprocessor to the data
+        X_train_preprocessed = preprocessor.transform(X_train)
+        X_val_preprocessed = preprocessor.transform(X_val)
+
+        # Fit the model
+        model.fit(X_train_preprocessed, y_train)
+
+        # Predict and evaluate
+        y_pred = model.predict(X_val_preprocessed)
+        
         if loss_metric == 'f1_score_macro':
             loss = -f1_score(y_val, y_pred, average='macro')
         else:
-            # Compute F1 score for class 1
             f1_class_1 = f1_score(y_val, y_pred, labels=[1], average=None)
-            # As hyperopt minimizes the objective, use negative F1 score
-            loss = -f1_class_1[0]  # Assuming class 1 is at index 0
-
+            loss = -f1_class_1[0]
 
         return {'loss': loss, 'status': STATUS_OK}
 
+
     # Define the search space for RandomForest hyperparameters
     space = {
-        'n_estimators': hp.choice('n_estimators', range(50, 500)),
-        'max_depth': hp.choice('max_depth', range(3, 14)),
-        'min_samples_split': hp.choice('min_samples_split', range(2, 10)),
-        'min_samples_leaf': hp.choice('min_samples_leaf', range(1, 5)),
-        'max_features': hp.choice('max_features', ['auto', 'sqrt', 'log2']),
+        'layers': hp.choice('layers', [(64, 32), (128, 64), (256, 128)]),
+        'dropout_rate': hp.uniform('dropout_rate', 0.1, 0.5),
+        'optimizer': hp.choice('optimizer', ['adam', 'rmsprop'])
     }
+
     # Initialize Trials object to keep track of results
     trials = Trials()
 
@@ -190,8 +237,8 @@ def hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_v
     )
 
     # After finding the best hyperparameters, log them
-    best_hyperparams = space_eval(space, best)
-    best_score = -trials.best_trial['result']['loss']
+    #best_hyperparams = space_eval(space, best)
+    #best_score = -trials.best_trial['result']['loss']
 
     # After finding the best hyperparameters, log them
     best_hyperparams = space_eval(space, best)
@@ -217,9 +264,42 @@ def advanced_question2():
     y_val = y_val[X_val.index]
     #%%
 
+    # Categorical columns and corresponding transformers
+    categorical_cols = X_train.select_dtypes(include=['object', 'bool', 'category']).columns.tolist()
+
+    # Numerical columns and corresponding transformers
+    numerical_cols = X_train.select_dtypes(include=['int64', 'float64']).columns.tolist()
+    numerical_transformer = Pipeline(steps=[
+        #('imputer', SimpleImputer(strategy='median')),
+        ('scaler', MinMaxScaler())
+    ])
+
+    # We need to convert booleans to integers before one-hot encoding
+    for col in categorical_cols:
+        if X_train[col].dtype == 'bool':
+            X_train[col] = X_train[col].astype(int)
+            X_val[col] = X_val[col].astype(int)
+
+    print(categorical_cols)
+    categorical_transformer = Pipeline(steps=[
+        #('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
+        ('imputer', SimpleImputer(strategy='most_frequent')),
+        ('onehot', OneHotEncoder(handle_unknown='ignore'))
+    ])
+
+    # Add the custom transformers to the preprocessing pipeline
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('num', numerical_transformer, numerical_cols),
+            ('cat', categorical_transformer, categorical_cols)
+        ],
+        remainder='drop'  # This drops the columns that we haven't transformed
+    )
+
+
     # Perform hyperparameter tuning
-    best_hyperparams = hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_val,
-                                                       loss_metric='f1_score_macro')
+    best_hyperparams = hyperparameter_tuning_question2(model_pipeline, preprocessor, X_train, y_train, X_val, y_val, loss_metric='f1_score_macro')
+
 
     #%%
 

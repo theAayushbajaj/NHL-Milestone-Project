@@ -15,6 +15,7 @@ import shap
 from sklearn.base import clone
 # Models
 from xgboost import XGBClassifier
+from sklearn.linear_model import LogisticRegression
 
 # Metrics
 from sklearn.metrics import (
@@ -58,11 +59,11 @@ COMET_API_KEY = open('comet_api_key.txt').read().strip()
 # Create an experiment with your api key
 experiment = Experiment(
     api_key=COMET_API_KEY,
-    project_name="Best Shot model rf",
+    project_name="Best Shot model LOGISTIC",
     workspace="2nd milestone",
     log_code=True
 )
-experiment.log_code(file_name='06_best_shot.py')
+experiment.log_code(file_name='06_best_shot_weighted_logistic.py')
 #%%
 
 
@@ -139,11 +140,11 @@ def preprocess_question2(data):
         remainder='drop'  # This drops the columns that we haven't transformed
     )
 
-    # Create the preprocessing and modeling pipeline with Random Forest
+    # Create the preprocessing and modeling pipeline with Logistic Regression
     model_pipeline = ImbPipeline(steps=[
         ('preprocessor', preprocessor),
-        #('smote', SMOTE(random_state=42)),
-        ('model', RandomForestClassifier(random_state=42))
+        ('smote', SMOTE(random_state=42)),
+        ('model', LogisticRegression(class_weight='balanced', random_state=42))
     ])
 
     return model_pipeline, X_train, y_train, X_val, y_val
@@ -169,13 +170,10 @@ def hyperparameter_tuning_question2(model_pipeline, X_train, y_train, X_val, y_v
 
         return {'loss': loss, 'status': STATUS_OK}
 
-    # Define the search space for RandomForest hyperparameters
+    # Define the search space for Logistic Regression hyperparameters
     space = {
-        'n_estimators': hp.choice('n_estimators', range(50, 500)),
-        'max_depth': hp.choice('max_depth', range(3, 14)),
-        'min_samples_split': hp.choice('min_samples_split', range(2, 10)),
-        'min_samples_leaf': hp.choice('min_samples_leaf', range(1, 5)),
-        'max_features': hp.choice('max_features', ['auto', 'sqrt', 'log2']),
+        'C': hp.loguniform('C', np.log(0.01), np.log(10)),
+        'solver': hp.choice('solver', ['newton-cg', 'lbfgs', 'liblinear', 'sag', 'saga'])
     }
     # Initialize Trials object to keep track of results
     trials = Trials()
@@ -241,10 +239,9 @@ def advanced_question2():
                                  model_reg_filename=model_reg_filename,
                                  tags=["RandomForest_model_allFeatures", "calibration_curve"], 
                                  experiment=experiment,
-                                 legend='RandomForest')
+                                 legend='Logistic')
     
-    #%%
-
+    
     #%%
     return model_pipeline
 
