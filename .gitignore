@@ -175,3 +175,8 @@ src/data/data/
 
 # personal files Aayush
 src/01_baseline_model.ipynb
+
+# model files
+src/**.pkl
+src/best_model_xgrf_vote.pkl
+
