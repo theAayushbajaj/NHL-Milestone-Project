@@ -297,7 +297,7 @@ def feature_selection_question3(model, X_train, X_val, y_train, y_val):
 
     # Create a series of SHAP values
     shap_series = pd.Series(shap_sum, index=feature_names).sort_values(ascending=False)
-    top_features_indices = np.argsort(-shap_sum)[:10]  # Get indices of top features
+    top_features_indices = np.argsort(-shap_sum)[:15]  # Get indices of top features
 
     # Select the top features for X_train and X_val
     X_val_transformed = model.named_steps['preprocessor'].transform(X_val)
@@ -352,18 +352,18 @@ def advanced_question3():
     model = clone(model_pipeline.named_steps['model'])
     X_train_transformed = X_train_transformed[:,top_feature_indices]
     X_val_transformed = preprocessor.transform(X_val).toarray()[:,top_feature_indices]
-    #best_hyperparams = hyperparameter_tuning_question2(model,X_train_transformed, y_train, X_val_transformed, y_val)
-    best_hyperparams = {'model__colsample_bytree': 0.6245922639323109,
- 'model__gamma': 0.09214513167844679,
- 'model__learning_rate': 0.06,
- 'model__max_delta_step': 7,
- 'model__max_depth': 8,
- 'model__min_child_weight': 9,
- 'model__n_estimators': 102,
- 'model__reg_alpha': 0.05863728144662128,
- 'model__reg_lambda': 3.7110567498401386,
- 'model__scale_pos_weight': 3.808135589700332,
- 'model__subsample': 0.9487052110417219}
+    best_hyperparams = hyperparameter_tuning_question2(model,X_train_transformed, y_train, X_val_transformed, y_val)
+#     best_hyperparams = {'model__colsample_bytree': 0.6245922639323109,
+#  'model__gamma': 0.09214513167844679,
+#  'model__learning_rate': 0.06,
+#  'model__max_delta_step': 7,
+#  'model__max_depth': 8,
+#  'model__min_child_weight': 9,
+#  'model__n_estimators': 102,
+#  'model__reg_alpha': 0.05863728144662128,
+#  'model__reg_lambda': 3.7110567498401386,
+#  'model__scale_pos_weight': 3.808135589700332,
+#  'model__subsample': 0.9487052110417219}
     model.set_params(**best_hyperparams)
     model.fit(np.concatenate((X_train_transformed,X_val_transformed)), pd.concat([y_train,y_val]))
 
