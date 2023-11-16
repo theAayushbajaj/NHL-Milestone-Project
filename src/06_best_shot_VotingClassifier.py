@@ -126,6 +126,9 @@ def preprocess(data):
     X_val = val.drop(columns=['season','is_goal'])
     y_val = val['is_goal']
 
+    X_test = test.drop(columns=['season','is_goal'])
+    y_test = test['is_goal']
+
     def imputer(data):
         # Convert booleans to integers
         bool_cols = data.select_dtypes(include=['bool']).columns
@@ -154,8 +157,9 @@ def preprocess(data):
     
     X_train = imputer(X_train)
     X_val = imputer(X_val)
+    X_test = imputer(X_test)
 
-    return X_train, y_train, X_val, y_val
+    return X_train, y_train, X_val, y_val, X_test, y_test
 #%%
 def hyperparameter_tuning(model, X_train, y_train, X_val, y_val, space):
     def objective(params):
@@ -197,7 +201,7 @@ def best_shot():
     data_fe2 = pd.read_csv('data/new_data_for_modeling_tasks/df_data.csv') 
 
     #%%
-    X_train, y_train, X_val, y_val = preprocess(data_fe2)
+    X_train, y_train, X_val, y_val, X_test, y_test = preprocess(data_fe2)
     #%%
     # Perform hyperparameter tuning
     hp_space = {
@@ -269,6 +273,19 @@ def best_shot():
                                  features = X_train.columns, 
                                  target = ['is_goal'], 
                                  val = pd.concat([X_val,y_val],axis=1), 
+                                 train = X_train, 
+                                 model_reg_filename = model_reg_filename,
+                                 tags = ["Best Model","XGBoost RandomForest(default) voting", "calibration_curve"], 
+                                 experiment = experiment,
+                                 legend = 'RFXG Voting Classifier')
+    
+    #%%
+    # Plot calibration curve
+    model_reg_filename = f"best_model_xgrf_vote.pkl"
+    utils.plot_calibration_curve(model = model, 
+                                 features = X_train.columns, 
+                                 target = ['is_goal'], 
+                                 val = pd.concat([X_test,y_test],axis=1), 
                                  train = X_train, 
                                  model_reg_filename = model_reg_filename,
                                  tags = ["Best Model","XGBoost RandomForest(default) voting", "calibration_curve"], 

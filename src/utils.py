@@ -80,62 +80,6 @@ def draw_missing_data_table(df):
     percent = (df.isnull().sum()/df.isnull().count()).sort_values(ascending=False)
     missing_data = pd.concat([total, percent], axis=1, keys=['Total', 'Percent of NaNs'])
     return missing_data
-
-class StratifiedValidationClass(object):
-    def __init__(self, n_splits, base_models):
-        self.n_splits = n_splits
-        self.base_models = base_models
-
-    def predict(self, X, y, T):
-        X = np.array(X)
-        y = np.array(y)
-        T = np.array(T)
-        no_class = len(np.unique(y))
-
-        folds = list(StratifiedKFold(n_splits=self.n_splits, shuffle=True, 
-                                     random_state = 42).split(X, y))
-
-        train_proba = np.zeros((X.shape[0], no_class))
-        test_proba = np.zeros((T.shape[0], no_class))
-        
-        train_pred = np.zeros((X.shape[0], len(self.base_models)))
-        test_pred = np.zeros((T.shape[0], len(self.base_models)* self.n_splits))
-        f1_scores = np.zeros((len(self.base_models), self.n_splits))
-        recall_scores = np.zeros((len(self.base_models), self.n_splits))
-        
-        test_col = 0
-        for i, clf in enumerate(self.base_models):
-            
-            for j, (train_idx, valid_idx) in enumerate(folds):
-                
-                X_train = X[train_idx]
-                Y_train = y[train_idx]
-                X_valid = X[valid_idx]
-                Y_valid = y[valid_idx]
-                
-                clf.fit(X_train, Y_train)
-                
-                valid_pred = clf.predict(X_valid)
-                recall  = recall_score(Y_valid, valid_pred, average='macro')
-                f1 = f1_score(Y_valid, valid_pred, average='macro')
-                
-                recall_scores[i][j] = recall
-                f1_scores[i][j] = f1
-                
-                train_pred[valid_idx, i] = valid_pred
-                test_pred[:, test_col] = clf.predict(T)
-                test_col += 1
-                
-                ## Probabilities
-                valid_proba = clf.predict_proba(X_valid)
-                train_proba[valid_idx, :] = valid_proba
-                test_proba  += clf.predict_proba(T)
-                
-                print( "Model- {} and CV- {} recall: {}, f1_score: {}".format(i, j, recall, f1))
-                
-            test_proba /= self.n_splits
-            
-        return train_proba, test_proba, train_pred, test_pred
     
 def split_train_val_test(data):
     """
