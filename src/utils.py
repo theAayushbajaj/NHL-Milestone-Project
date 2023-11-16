@@ -216,25 +216,23 @@ def plot_calibration_curve(model, features, target, val, train, model_reg_filena
 
     # Plot and save the goal rate plot
     plt.subplot(2, 2, 1)
-    plt.plot(goal_rate, label = legend)
+    plt.plot(goal_rate)
     plt.gca().invert_xaxis()
     plt.gca().set_ylim([0, 100])
     plt.xlabel('Model Probability Percentile')
     plt.ylabel('Goal Rate (%)')
     plt.title('Goal Rate')
-    if legend:
-        plt.legend()
+
 
     # Plot and save the cumulative goals plot
     plt.subplot(2, 2, 2)
-    plt.plot(cumulative_goals, label = legend)
+    plt.plot(cumulative_goals)
     plt.gca().invert_xaxis()
     plt.gca().set_ylim([0, 100])
     plt.xlabel('Model Probability Percentile')
     plt.ylabel('Cumulative Goals (%)')
     plt.title('Cumulative % of Goals')
-    if legend:
-        plt.legend()
+
 
     # Plot the ROC curve
     plt.subplot(2, 2, 3)
