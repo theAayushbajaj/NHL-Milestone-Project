@@ -11,7 +11,7 @@ After preparing the tidy dataset to include details about all shots and goals, w
 
 **Shot counts by distance**
 
-![shot counts by distance](/assets/images/shot_by_distance.PNG)
+![shot counts by distance](../assets/images/shot_by_distance.PNG)
 
 As depicted in the figure above, it is clear that the majority of shots and goals were attempted from distances ranging between 5 to 70 feet, which aligns with our expectations. The greatest concentration of both shots and goals occurred at a distance of approximately 15 feet. In contrast, very few shots were taken from the defensive side of each team, where the distance exceeded 100 feet.
 
