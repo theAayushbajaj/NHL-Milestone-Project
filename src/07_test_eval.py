@@ -163,6 +163,7 @@ def preprocess(data):
     data[numerical_cols] = scaler.fit_transform(data[numerical_cols])
     
     data['season'] = retain_season
+
     # split the data
     train, val, test = utils.split_train_val_test(data)
     X_train = train.drop(columns=['season','is_goal'])
@@ -304,7 +305,146 @@ def test_eval_7_1():
 
 #%%
 def test_eval_7_2():
+    #%%
     test_logreg =  pd.read_csv('data/test_data/playoff_2020_Log_reg_Mile1_feat_name_test_data.csv')
+    test_rest = pd.read_csv('data/test_data/playoff_2020_test_data_Task_5_6_Models.csv')
+    data = pd.read_csv('data/new_data_for_modeling_tasks/df_data.csv')
+    #%%
+    # minmax scale test_logreg
+    scaler = MinMaxScaler()
+    test_logreg[['shot_distance','shot_angle']] = scaler.fit_transform(test_logreg[['shot_distance','shot_angle']])
+
+    # preprocess test_rest
+    _, _, _, _, X_test, y_test = preprocess(test_rest)
+    X_train, _, _, _, _, _ = preprocess(data)
+
+    #%%
+    # check columns which are in X_train but not in X_test
+    X_train_cols = X_train.columns
+    X_test_cols = X_test.columns
+    diff = X_train_cols.difference(X_test_cols)
+    # all diff columns are categoricals and correspond to teams/shots which are not there in test set so adding them as 0s
+    # add all diff columns to X_test and put value as 0
+    for col in diff:
+        X_test[col] = 0
+    
+    X_test = X_test[X_train_cols]
+    #%%
+    # Load pkl model
+    logreg_dist = joblib.load('distance_model.pkl')
+    logreg_angle = joblib.load('angle_model.pkl')
+    logreg_dist_angle = joblib.load('distance_angle_model.pkl')
+    xgb = joblib.load('advanced_question2_model.pkl')
+    voting = joblib.load('best_model_xgrf_vote.pkl')
+
+    #%%
+    test = pd.concat([X_test, y_test], axis=1)
+    test.dropna(axis=0,inplace=True)
+
+    #%%
+    model_names = ['Logistic_Distance_Model', 
+                   'Logistic_Angle_Model', 
+                   'Logistic_Distance_Angle_Model', 
+                   'Best_XGBoost_Model',
+                   'Best_Shot_Model']
+    
+    data_for_models = {'Logistic_Distance_Model': test_logreg[['shot_distance','is_goal']].copy(),
+                       'Logistic_Angle_Model': test_logreg[['shot_angle','is_goal']].copy(),
+                       'Logistic_Distance_Angle_Model': test_logreg[['shot_angle', 'shot_distance','is_goal']].copy(),
+                       'Best_XGBoost_Model': test.copy(),
+                       'Best_Shot_Model': test.copy()}
+    
+    models = [logreg_dist, logreg_angle, logreg_dist_angle, xgb, voting]
+
+    fig, axs = plt.subplots(2, 2, figsize=(10, 8))
+    for i, model in enumerate(models):
+        print(model_names[i])
+        data_for_pred = data_for_models[model_names[i]]
+        # Predict probabilities
+        y_pred = model.predict(data_for_pred.drop(columns=['is_goal']).values)
+        data_for_pred['y_prob'] = model.predict_proba(data_for_pred.drop(columns=['is_goal']).values)[:, 1]
+
+        # Calculate ROC curve and AUC
+        fpr, tpr, thresholds = roc_curve(data_for_pred['is_goal'], data_for_pred['y_prob'])
+        roc_auc = roc_auc_score(data_for_pred['is_goal'], data_for_pred['y_prob'])
+
+        # Calculate calibration curve
+        prob_true, prob_pred = calibration_curve(data_for_pred['is_goal'], data_for_pred['y_prob'], n_bins=10)
+
+        # Calculate goal rate and cumulative goals
+
+        goal_rate = data_for_pred.groupby(pd.qcut(data_for_pred['y_prob'], 25))['is_goal'].mean() * 100
+
+        # convert interval index to its midpoint values
+        # goal_rate.index = goal_rate.index.map(lambda x: x.mid)
+        goal_rate.index = goal_rate.index.map(lambda x: x.left)
+        goal_rate.index = np.array(goal_rate.index) / goal_rate.index.max() * 100
+        
+        # get the cumulative sum of goals
+        # cumulative_goals = val.groupby(pd.qcut(val['prob'], 10))[target].sum().cumsum()
+        cumulative_goals = goal_rate[::-1].cumsum()/goal_rate[::-1].cumsum().max() * 100
+
+        # Log metrics to Comet
+        accuracy = accuracy_score(data_for_pred['is_goal'], y_pred)
+        f1 = f1_score(data_for_pred['is_goal'], y_pred, average='macro')
+        recall = recall_score(data_for_pred['is_goal'], y_pred, average='macro')
+
+        line_style = '-'  # Replace with the line style you want to use
+        marker = None  # Replace with the marker you want to use
+
+        # Plot goal rate
+        axs[0, 0].plot(goal_rate.index, goal_rate.values, label=f'{model_names[i]}', linestyle = line_style, marker = marker)
+        axs[0,0].grid(True)
+
+        axs[0, 1].plot(cumulative_goals.index, cumulative_goals.values, label=f'{model_names[i]}', linestyle = line_style, marker = marker)
+        axs[0,1].grid(True)
+
+        axs[1, 0].plot(fpr, tpr, label=f'{model_names[i]} (AUC = {roc_auc:.2f})', linestyle = line_style, marker = marker)
+        axs[1,0].grid(True)
+
+        CalibrationDisplay.from_predictions(data_for_pred['is_goal'], data_for_pred['y_prob'], n_bins=10, ax=axs[1, 1], label=f'{model_names[i]}')
+        axs[1, 1].grid(True)
+        print('model complete')
+    # Finalize plots with appropriate labels, titles, and axis adjustments
+    for ax in axs[0, :]:  # For top row subplots
+        ax.invert_xaxis()
+        ax.set_ylim([0, 100])
+
+    for ax in axs[1, :]:  # For bottom row subplots
+        ax.plot([0, 1], [0, 1], 'k--')
+
+    # Set titles
+    axs[0, 0].set_title('Goal Rate by Probability Percentile')
+    axs[0, 1].set_title('Cumulative Goals by Probability Percentile')
+    axs[1, 0].set_title('ROC Curve')
+    axs[1, 1].set_title('Reliability Diagram')
+
+    # set x and y labels
+    axs[0, 0].set_xlabel('Model Probability Percentile')
+    axs[0, 0].set_ylabel('Goal Rate (%)')
+
+    axs[0, 1].set_xlabel('Model Probability Percentile')
+    axs[0, 1].set_ylabel('Cumulative Goals (%)')
+
+    axs[1, 0].set_xlabel('False Positive Rate')
+    axs[1, 0].set_ylabel('True Positive Rate')
+
+    axs[1, 1].set_xlabel('Model Probability')
+    axs[1, 1].set_ylabel('Fraction of Positives')
+    
+    # Add legends
+    for ax in axs.flatten():
+        ax.legend(loc='best')
+
+    # Adjust layout, save, and close the figure
+    plt.tight_layout()
+    plt.savefig('Test_Eval_5_Models_playoffs.png')
+    plt.close()
+
+    # Log the figure to Comet
+    experiment.log_image('Test_Eval_5_Models_playoffs.png', name='Playoffs Test Set Eval on 5 models')
+    experiment.add_tags(["Playoffs Test Set Evaluation", "Combined curves of 5 models"])
+
 #%%
 if __name__ == "__main__":
     test_eval_7_1()
