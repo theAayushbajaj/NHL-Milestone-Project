@@ -1,4 +1,3 @@
-#%%
 # Basic libraries
 import numpy as np
 import pandas as pd
@@ -42,7 +41,7 @@ import utils
 # Joblib for model persistence
 import joblib
 
-#%%
+
 # get api key from text file
 COMET_API_KEY = open('comet_api_key.txt').read().strip()
 
@@ -54,7 +53,7 @@ experiment = Experiment(
     log_code=True
 )
 experiment.log_code(file_name='03_baseline_models.py')
-#%%
+
 def baseline_question1(experiment):
     '''
 
@@ -99,7 +98,7 @@ def baseline_question1(experiment):
     experiment.log_model(model_reg_filename, model_reg_filename)
     experiment.add_tags(["Baseline Logistic Question 1"])
 
-#%%
+
 def baseline_question2(experiment):
     #%%
     data_baseline = pd.read_csv('data/baseline_model_data.csv')
@@ -132,7 +131,7 @@ def baseline_question2(experiment):
                                  tags = ["Baseline Logistic Question 2", "calibration_curve"], 
                                  experiment = experiment)
 
-#%%
+
 def baseline_question3(experiment):
     #%%
     class RandomModel:
@@ -263,11 +262,9 @@ def baseline_question3(experiment):
     experiment.log_image('all_metrics_combined.png', name='Combined Metrics Plot')
     experiment.add_tags(["Baseline Logistic Question 3", "Combined curves of 4 models"])
 
-    #%%
+
 if __name__ == "__main__":
     baseline_question1(experiment)
     baseline_question2(experiment)
     baseline_question3(experiment)
-
-    #%%
     experiment.end()

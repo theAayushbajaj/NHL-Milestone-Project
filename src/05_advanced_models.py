@@ -1,4 +1,3 @@
-#%%
 # Basic libraries
 import numpy as np
 import pandas as pd
@@ -39,7 +38,7 @@ import utils
 # Joblib for model persistence
 import joblib
 
-#%%
+
 # get api key from text file
 COMET_API_KEY = open('comet_api_key.txt').read().strip()
 
@@ -51,31 +50,18 @@ experiment = Experiment(
     log_code=True
 )
 experiment.log_code(file_name='05_advanced_models.py')
-#%%
+
 def advanced_question1(experiment):
-    '''
-    . Train an XGBoost classifier using the same dataset using only the distance and angle features (similar to part 3). 
-    Don’t worry about hyperparameter tuning yet, this will just serve as a comparison to the baseline before we add more features. 
-    Add the corresponding curves to the four figures in your blog post. Briefly (few sentences) discuss your training/validation 
-    setup, and compare the results to the Logistic Regression baseline. Include a link to the relevant comet.ml entry for this experiment, 
-    but you do not need to log this model to the model registry.
-    '''
-    #%%
     data_baseline = pd.read_csv('data/baseline_model_data.csv')
     train_base, val_base, test_base = utils.split_train_val_test(data_baseline)
-
-    #%%
 
     X_train = train_base[['shot_distance', 'shot_angle']]
     y_train = train_base['is_goal']
     X_val = val_base[['shot_distance', 'shot_angle']]
     y_val = val_base['is_goal']
 
-    #%%
-
     features = ['shot_distance', 'shot_angle']
     target = ['is_goal']
-    #%%
     # Define the pipeline
     xg_pipeline = Pipeline(steps=[
         ('scaler', MinMaxScaler()),
@@ -85,7 +71,6 @@ def advanced_question1(experiment):
     # Fit the pipeline
     xg_pipeline.fit(X_train, y_train)
 
-    #%%
     model_reg_filename = f"advanced_question1_model.pkl"  # Modify as needed
     # Now call the function with this pipeline
     utils.plot_calibration_curve(model = xg_pipeline, 
@@ -98,11 +83,7 @@ def advanced_question1(experiment):
                                  experiment = experiment,
                                  legend = 'XGBoost Baseline')
 
-#%%
 def preprocess(data):
-    # omitting the non-essential features
-    #data['attacking_goals'] = data.apply(lambda x: np.max(x['home goal'] - 1, 0) if x['home team'] == x['team shot'] else np.max(x['away goal']-1,0), axis = 1)
-    #data['defending_goals'] = data.apply(lambda x: x['home goal'] if x['home team'] != x['team shot'] else x['away goal'], axis = 1)
     data['is_home'] = data.apply(lambda x: 1 if x['home_team_name'] == x['team_name'] else 0, axis = 1)
 
     data = data.drop(['game_date','game_id','Shooter','Goalie','rinkSide','home_goal','away_goal'],axis=1)
@@ -171,7 +152,6 @@ def preprocess(data):
 
     return X_train, y_train, X_val, y_val, X_test, y_test
 
-#%%
 def hyperparameter_tuning_question2(model, X_train, y_train, X_val, y_val):
     def objective(params):
         model.set_params(**params)
@@ -220,22 +200,21 @@ def hyperparameter_tuning_question2(model, X_train, y_train, X_val, y_val):
 
     return best_hyperparams
 
-#%%
 def advanced_question2():
-    #%%
+    
     data_fe2 = pd.read_csv('data/new_data_for_modeling_tasks/df_data.csv') 
 
-    #%%
+    
     X_train, y_train, X_val, y_val, _, _ = preprocess(data_fe2)
-    #%%
+    
     # Perform hyperparameter tuning
     model = XGBClassifier(use_label_encoder=False, eval_metric='logloss')
     best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
-    #%%
+    
     # Train the model with the best hyperparameters
     model.set_params(**best_hyperparams)
     model.fit(pd.concat([X_train, X_val]), pd.concat([y_train, y_val]))
-    #%%
+    
     # Plot calibration curve
     model_reg_filename = f"advanced_question2_model.pkl"
     utils.plot_calibration_curve(model = model, 
@@ -247,9 +226,8 @@ def advanced_question2():
                                  tags = ["Advanced Q2","XGBoost Tuned", "calibration_curve"], 
                                  experiment = experiment,
                                  legend = 'XGBoost Tuned')
-    #%%
-    return clf
-#%%
+
+
 def feature_selection_question3(model, X_train, X_val, y_train, y_val):
     # Fit the model pipeline with your training data
     model.fit(X_train, y_train)
@@ -290,19 +268,18 @@ def feature_selection_question3(model, X_train, X_val, y_train, y_val):
 
     return top_feature_names, top_features_indices
 
-#%%
 def advanced_question3():
-    #%%
+    
     data_fe2 = pd.read_csv('data/new_data_for_modeling_tasks/df_data.csv') 
     X_train, y_train, X_val, y_val, _, _ = preprocess(data_fe2)
-    #%%
+    
     # Perform hyperparameter tuning
     model = XGBClassifier(use_label_encoder=False, eval_metric='logloss')
     best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
-    #%%
+    
     model.set_params(**best_hyperparams)
     top_feature_names, top_feature_indices = feature_selection_question3(model, X_train, X_val, y_train, y_val)
-    #%%
+    
     X_train = X_train[top_feature_names]
     X_val = X_val[top_feature_names]
 
@@ -310,7 +287,7 @@ def advanced_question3():
     model.set_params(**best_hyperparams)
     model.fit(pd.concat([X_train,X_val]), pd.concat([y_train,y_val]))
 
-    #%%
+    
     model_reg_filename = f"advanced_question3_model.pkl"
     utils.plot_calibration_curve(model = model, 
                                  features = X_train.columns, 
@@ -321,14 +298,12 @@ def advanced_question3():
                                  tags = ["Advanced Q3","Tuned XGBoost on SHAP", "calibration_curve"], 
                                  experiment = experiment,
                                  legend='XGBoost Tuned on SHAP')
-    #%%
-    return clf
 
 if __name__ == '__main__':
-    #advanced_question1()
-    clf = advanced_question2()
-    #advanced_question3(clf)
+    advanced_question1()
+    advanced_question2()
+    advanced_question3()
 
-    #%%
+    
     experiment.end()
 # %%
