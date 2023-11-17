@@ -161,7 +161,7 @@ def baseline_question3(experiment):
         ['shot_distance']  # This will be used with the RandomModel
     ]
     target = ['is_goal']
-    model_names = ['Distance Model', 'Angle Model', 'Combined Features Model', 'Random Model']
+    model_names = ['Distance_Model', 'Angle_Model', 'Distance_Angle_Model', 'Random Model']
 
     fig, axs = plt.subplots(2, 2, figsize=(10, 8))
     for i, features in enumerate(features_list):
@@ -175,6 +175,9 @@ def baseline_question3(experiment):
             
         # Fit the model
         model.fit(train_base[features], train_base['is_goal'])
+        model_reg_filename = model_names[i] + ".pkl"
+        joblib.dump(model, model_reg_filename)
+        experiment.log_model(model_reg_filename, model_reg_filename)
 
         # Predict probabilities
         y_true = val_base[target].values.ravel()
