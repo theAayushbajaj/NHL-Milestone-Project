@@ -119,6 +119,32 @@ def preprocess(data):
     # is_home as boolean
     data['is_home'] = data['is_home'].astype('bool')
 
+    retain_season = data['season']
+    data = data.drop(['season'],axis=1)
+    # Convert booleans to integers
+    bool_cols = data.select_dtypes(include=['bool']).columns
+    data[bool_cols] = data[bool_cols].astype(int)
+
+    # Handle categorical data
+    categorical_cols = data.select_dtypes(include=['object', 'category']).columns
+
+    # Impute missing values with the most frequent value
+    for col in categorical_cols:
+        if data[col].isna().any():
+            simple_imputer = SimpleImputer(strategy='most_frequent')
+            data[col] = simple_imputer.fit_transform(data[[col]]).ravel()  # Use ravel() to convert the output to 1D array
+
+    # One-hot encode categorical columns
+    data = pd.get_dummies(data, columns=categorical_cols, drop_first=True)
+
+    # Handle numerical data
+    numerical_cols = data.select_dtypes(include=['int64', 'float64']).columns
+
+    # Scale numerical columns
+    scaler = MinMaxScaler()
+    data[numerical_cols] = scaler.fit_transform(data[numerical_cols])
+    
+    data['season'] = retain_season
     # split the data
     train, val, test = utils.split_train_val_test(data)
     X_train = train.drop(columns=['season','is_goal'])
@@ -129,35 +155,6 @@ def preprocess(data):
     X_test = test.drop(columns=['season','is_goal'])
     y_test = test['is_goal']
 
-    def imputer(data):
-        # Convert booleans to integers
-        bool_cols = data.select_dtypes(include=['bool']).columns
-        data[bool_cols] = data[bool_cols].astype(int)
-
-        # Handle categorical data
-        categorical_cols = data.select_dtypes(include=['object', 'category']).columns
-
-        # Impute missing values with the most frequent value
-        for col in categorical_cols:
-            if data[col].isna().any():
-                simple_imputer = SimpleImputer(strategy='most_frequent')
-                data[col] = simple_imputer.fit_transform(data[[col]]).ravel()  # Use ravel() to convert the output to 1D array
-
-        # One-hot encode categorical columns
-        data = pd.get_dummies(data, columns=categorical_cols, drop_first=True)
-
-        # Handle numerical data
-        numerical_cols = data.select_dtypes(include=['int64', 'float64']).columns
-
-        # Scale numerical columns
-        scaler = MinMaxScaler()
-        data[numerical_cols] = scaler.fit_transform(data[numerical_cols])
-
-        return data
-    
-    X_train = imputer(X_train)
-    X_val = imputer(X_val)
-    X_test = imputer(X_test)
 
     return X_train, y_train, X_val, y_val, X_test, y_test
 #%%
@@ -255,12 +252,12 @@ def best_shot():
     #%%
     # Create the voting classifier
     train = pd.concat([X_train, y_train], axis=1)
-    train.dropna(inplace=True)
+    train.dropna(axis=0,inplace=True)
     X_train = train.drop(columns=['is_goal'])
     y_train = train['is_goal']
 
     val = pd.concat([X_val, y_val], axis=1)
-    val.dropna(inplace=True)
+    val.dropna(axis=0,inplace=True)
     X_val = val.drop(columns=['is_goal'])
     y_val = val['is_goal']
 
@@ -279,18 +276,6 @@ def best_shot():
                                  experiment = experiment,
                                  legend = 'RFXG Voting Classifier')
     
-    #%%
-    # Plot calibration curve
-    model_reg_filename = f"best_model_xgrf_vote.pkl"
-    utils.plot_calibration_curve(model = model, 
-                                 features = X_train.columns, 
-                                 target = ['is_goal'], 
-                                 val = pd.concat([X_test,y_test],axis=1), 
-                                 train = X_train, 
-                                 model_reg_filename = model_reg_filename,
-                                 tags = ["Best Model","XGBoost RandomForest(default) voting", "calibration_curve"], 
-                                 experiment = experiment,
-                                 legend = 'RFXG Voting Classifier')
 #%%
 if __name__ == "__main__":
     best_shot()

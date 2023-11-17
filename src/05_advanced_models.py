@@ -99,7 +99,7 @@ def advanced_question1(experiment):
                                  legend = 'XGBoost Baseline')
 
 #%%
-def preprocess_question2(data):
+def preprocess(data):
     # omitting the non-essential features
     #data['attacking_goals'] = data.apply(lambda x: np.max(x['home goal'] - 1, 0) if x['home team'] == x['team shot'] else np.max(x['away goal']-1,0), axis = 1)
     #data['defending_goals'] = data.apply(lambda x: x['home goal'] if x['home team'] != x['team shot'] else x['away goal'], axis = 1)
@@ -132,6 +132,32 @@ def preprocess_question2(data):
     # is_home as boolean
     data['is_home'] = data['is_home'].astype('bool')
 
+    retain_season = data['season']
+    data = data.drop(['season'],axis=1)
+    # Convert booleans to integers
+    bool_cols = data.select_dtypes(include=['bool']).columns
+    data[bool_cols] = data[bool_cols].astype(int)
+
+    # Handle categorical data
+    categorical_cols = data.select_dtypes(include=['object', 'category']).columns
+
+    # Impute missing values with the most frequent value
+    for col in categorical_cols:
+        if data[col].isna().any():
+            simple_imputer = SimpleImputer(strategy='most_frequent')
+            data[col] = simple_imputer.fit_transform(data[[col]]).ravel()  # Use ravel() to convert the output to 1D array
+
+    # One-hot encode categorical columns
+    data = pd.get_dummies(data, columns=categorical_cols, drop_first=True)
+
+    # Handle numerical data
+    numerical_cols = data.select_dtypes(include=['int64', 'float64']).columns
+
+    # Scale numerical columns
+    scaler = MinMaxScaler()
+    data[numerical_cols] = scaler.fit_transform(data[numerical_cols])
+    
+    data['season'] = retain_season
     # split the data
     train, val, test = utils.split_train_val_test(data)
     X_train = train.drop(columns=['season','is_goal'])
@@ -139,44 +165,11 @@ def preprocess_question2(data):
     X_val = val.drop(columns=['season','is_goal'])
     y_val = val['is_goal']
 
-    # Categorical columns and corresponding transformers
-    categorical_cols = X_train.select_dtypes(include=['object', 'bool', 'category']).columns.tolist()
+    X_test = test.drop(columns=['season','is_goal'])
+    y_test = test['is_goal']
 
-    # Numerical columns and corresponding transformers
-    numerical_cols = X_train.select_dtypes(include=['int64', 'float64']).columns.tolist()
-    numerical_transformer = Pipeline(steps=[
-        #('imputer', SimpleImputer(strategy='median')),
-        ('scaler', MinMaxScaler())
-    ])
 
-    # We need to convert booleans to integers before one-hot encoding
-    for col in categorical_cols:
-        if X_train[col].dtype == 'bool':
-            X_train[col] = X_train[col].astype(int)
-            X_val[col] = X_val[col].astype(int)
-
-    categorical_transformer = Pipeline(steps=[
-        #('imputer', SimpleImputer(strategy='constant', fill_value='missing')),
-        ('imputer', SimpleImputer(strategy='most_frequent')),
-        ('onehot', OneHotEncoder(handle_unknown='ignore'))
-    ])
-
-    # Add the custom transformers to the preprocessing pipeline
-    preprocessor = ColumnTransformer(
-        transformers=[
-            ('num', numerical_transformer, numerical_cols),
-            ('cat', categorical_transformer, categorical_cols)
-        ],
-        remainder='drop'  # This drops the columns that we haven't transformed
-    )
-
-    # Create the preprocessing and modeling pipeline
-    model_pipeline = Pipeline(steps=[
-        ('preprocessor', preprocessor),
-        ('model', XGBClassifier(use_label_encoder=False, eval_metric='logloss'))
-    ])
-
-    return model_pipeline, X_train, y_train, X_val, y_val
+    return X_train, y_train, X_val, y_val, X_test, y_test
 
 #%%
 def hyperparameter_tuning_question2(model, X_train, y_train, X_val, y_val):
@@ -191,17 +184,17 @@ def hyperparameter_tuning_question2(model, X_train, y_train, X_val, y_val):
 
     # Define the search space for hyperparameters
     space = {
-        'model__n_estimators': hp.choice('model__n_estimators', range(50, 500)),
-        'model__learning_rate': hp.quniform('model__learning_rate', 0.01, 0.2, 0.01),
-        'model__max_depth': hp.choice('model__max_depth', range(3, 14)),
-        'model__min_child_weight': hp.choice('model__min_child_weight', range(1, 10)),
-        'model__gamma': hp.uniform('model__gamma', 0.0, 0.5),
-        'model__subsample': hp.uniform('model__subsample', 0.5, 1.0),
-        'model__colsample_bytree': hp.uniform('model__colsample_bytree', 0.5, 1.0),
-        'model__reg_alpha': hp.uniform('model__reg_alpha', 0.0, 1.0),
-        'model__reg_lambda': hp.uniform('model__reg_lambda', 1.0, 4.0),
-        'model__scale_pos_weight': hp.uniform('model__scale_pos_weight', 1.0, 10.0),
-        'model__max_delta_step': hp.choice('model__max_delta_step', range(1, 10)),
+        'n_estimators': hp.choice('n_estimators', range(50, 500)),
+        'learning_rate': hp.quniform('learning_rate', 0.01, 0.2, 0.01),
+        'max_depth': hp.choice('max_depth', range(3, 14)),
+        'min_child_weight': hp.choice('min_child_weight', range(1, 10)),
+        'gamma': hp.uniform('gamma', 0.0, 0.5),
+        'subsample': hp.uniform('subsample', 0.5, 1.0),
+        'colsample_bytree': hp.uniform('colsample_bytree', 0.5, 1.0),
+        'reg_alpha': hp.uniform('reg_alpha', 0.0, 1.0),
+        'reg_lambda': hp.uniform('reg_lambda', 1.0, 4.0),
+        'scale_pos_weight': hp.uniform('scale_pos_weight', 1.0, 10.0),
+        'max_delta_step': hp.choice('max_delta_step', range(1, 10)),
     }
     # Initialize Trials object to keep track of results
     trials = Trials()
@@ -233,9 +226,10 @@ def advanced_question2():
     data_fe2 = pd.read_csv('data/new_data_for_modeling_tasks/df_data.csv') 
 
     #%%
-    model, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
+    X_train, y_train, X_val, y_val, _, _ = preprocess(data_fe2)
     #%%
     # Perform hyperparameter tuning
+    model = XGBClassifier(use_label_encoder=False, eval_metric='logloss')
     best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
     #%%
     # Train the model with the best hyperparameters
@@ -259,117 +253,66 @@ def advanced_question2():
 def feature_selection_question3(model, X_train, X_val, y_train, y_val):
     # Fit the model pipeline with your training data
     model.fit(X_train, y_train)
-    
-    # Extract the fitted XGBClassifier from the pipeline
-    fitted_model = model.named_steps['model']
-    
+
     # Create a SHAP TreeExplainer using the fitted XGBClassifier model
-    explainer = shap.TreeExplainer(fitted_model)
-    
-    # Transform the features (X_train) using the preprocessor to get the transformed features
-    X_train_transformed = model.named_steps['preprocessor'].transform(X_train)
-    
+    explainer = shap.TreeExplainer(model)
+
     # Compute SHAP values - this can be compute-intensive for large datasets
-    shap_values = explainer.shap_values(X_train_transformed, approximate=True)
-    
+    shap_values = explainer.shap_values(X_train, approximate=True)
+
     # Get the feature names after preprocessing
-    feature_names = model.named_steps['preprocessor'].get_feature_names_out()
-    
-    plt.switch_backend('Agg')
+    feature_names = X_train.columns
 
-    # Your SHAP calculation code
-
-    # Visualize the SHAP values with a beeswarm plot
-    shap.summary_plot(shap_values, X_train_transformed, plot_type='dot', feature_names=feature_names)
-
-    # Ensure that the figure is explicitly defined and saved
-    fig = plt.gcf()  # Get the current figure before saving it
-    fig.savefig('shap_beeswarm_plot.png', bbox_inches='tight')  # Use bbox_inches to include all plot elements
-    plt.close(fig)  # Close the plot to free up memory
-    # Log the SHAP summary plot to Comet
-    experiment.log_image('shap_beeswarm_plot.png', name='SHAP Beeswarm Plot')
-
-    # Return the top 20 features based on SHAP values
-    # For multi-class classification, sum the SHAP values across all classes
-    shap_sum = np.abs(shap_values).mean(axis=0)
-    if isinstance(shap_sum, list):  # Multi-class case
-        shap_sum = np.sum(np.array(shap_sum), axis=0)
+    # Handle multi-class case
+    if isinstance(shap_values, list):
+        # Sum the absolute SHAP values across all output classes
+        shap_sum = np.sum([np.abs(sv).mean(0) for sv in shap_values], axis=0)
+    else:
+        # For binary classification, take the mean of the absolute SHAP values
+        shap_sum = np.abs(shap_values).mean(0)
 
     # Create a series of SHAP values
     shap_series = pd.Series(shap_sum, index=feature_names).sort_values(ascending=False)
-    top_features_indices = np.argsort(-shap_sum)[:15]  # Get indices of top features
 
-    # Select the top features for X_train and X_val
-    X_val_transformed = model.named_steps['preprocessor'].transform(X_val)
-    if isinstance(X_train_transformed, np.ndarray):
-        X_train_top_features = X_train_transformed[:, top_features_indices]
-    else:
-        X_train_top_features = X_train_transformed.toarray()[:, top_features_indices]
+    # Get the top 15 feature names and their indices
+    top_features_indices = np.argsort(-shap_sum)[:15]
+    top_feature_names = shap_series.index[:15].tolist()
 
-    if isinstance(X_val_transformed, np.ndarray):
-        X_val_top_features = X_val_transformed[:, top_features_indices]
-    else:
-        X_val_top_features = X_val_transformed.toarray()[:, top_features_indices]
+    # Visualize the SHAP values with a beeswarm plot
+    plt.switch_backend('Agg')
+    shap.summary_plot(shap_values, X_train, plot_type='dot', feature_names=feature_names)
+    fig = plt.gcf()
+    fig.savefig('shap_beeswarm_plot.png', bbox_inches='tight')
+    plt.close(fig)
 
-    # Remove 'num__' and 'cat__' prefixes from the feature names
-    def clean_feature_name(fname):
-        return fname.replace('num__', '').replace('cat__', '')
+    # Log the SHAP summary plot to Comet
+    experiment.log_image('shap_beeswarm_plot.png', name='SHAP Beeswarm Plot')
 
-    # Get clean top feature names
-    top_feature_names = [clean_feature_name(feature_names[i]) for i in top_features_indices]
     return top_feature_names, top_features_indices
 
 #%%
 def advanced_question3():
     #%%
     data_fe2 = pd.read_csv('data/new_data_for_modeling_tasks/df_data.csv') 
-    model_pipeline, X_train, y_train, X_val, y_val = preprocess_question2(data_fe2)
+    X_train, y_train, X_val, y_val, _, _ = preprocess(data_fe2)
     #%%
     # Perform hyperparameter tuning
-    #best_hyperparams = hyperparameter_tuning_question2(model_pipeline,X_train, y_train, X_val, y_val)
-    best_hyperparams = {'model__colsample_bytree': 0.882162152864482,
- 'model__gamma': 0.16487432807819533,
- 'model__learning_rate': 0.1,
- 'model__max_delta_step': 5,
- 'model__max_depth': 5,
- 'model__min_child_weight': 3,
- 'model__n_estimators': 334,
- 'model__reg_alpha': 0.617947326072274,
- 'model__reg_lambda': 3.271358327330144,
- 'model__scale_pos_weight': 4.001431354425059,
- 'model__subsample': 0.9752552528311702}
+    model = XGBClassifier(use_label_encoder=False, eval_metric='logloss')
+    best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
     #%%
-    model_pipeline.set_params(**best_hyperparams)
-    top_feature_names, top_feature_indices = feature_selection_question3(model_pipeline, X_train, X_val, y_train, y_val)
-    model_pipeline.fit(X_train, y_train)
-    #%%
-    # Train the model with the best hyperparameters
-    # First, fit and transform with the preprocessor
-    preprocessor = clone(model_pipeline.named_steps['preprocessor'])
-    X_train_transformed = preprocessor.fit_transform(X_train).toarray()
-
-    # Now, fit the model separately with the transformed data
-    model = clone(model_pipeline.named_steps['model'])
-    X_train_transformed = X_train_transformed[:,top_feature_indices]
-    X_val_transformed = preprocessor.transform(X_val).toarray()[:,top_feature_indices]
-    best_hyperparams = hyperparameter_tuning_question2(model,X_train_transformed, y_train, X_val_transformed, y_val)
-#     best_hyperparams = {'model__colsample_bytree': 0.6245922639323109,
-#  'model__gamma': 0.09214513167844679,
-#  'model__learning_rate': 0.06,
-#  'model__max_delta_step': 7,
-#  'model__max_depth': 8,
-#  'model__min_child_weight': 9,
-#  'model__n_estimators': 102,
-#  'model__reg_alpha': 0.05863728144662128,
-#  'model__reg_lambda': 3.7110567498401386,
-#  'model__scale_pos_weight': 3.808135589700332,
-#  'model__subsample': 0.9487052110417219}
     model.set_params(**best_hyperparams)
-    model.fit(np.concatenate((X_train_transformed,X_val_transformed)), pd.concat([y_train,y_val]))
+    top_feature_names, top_feature_indices = feature_selection_question3(model, X_train, X_val, y_train, y_val)
+    #%%
+    X_train = X_train[top_feature_names]
+    X_val = X_val[top_feature_names]
+
+    best_hyperparams = hyperparameter_tuning_question2(model,X_train, y_train, X_val, y_val)
+    model.set_params(**best_hyperparams)
+    model.fit(pd.concat([X_train,X_val]), pd.concat([y_train,y_val]))
 
     #%%
     model_reg_filename = f"advanced_question3_model.pkl"
-    utils.plot_calibration_curve(model = model_pipeline, 
+    utils.plot_calibration_curve(model = model, 
                                  features = X_train.columns, 
                                  target = ['is_goal'], 
                                  val = pd.concat([X_val,y_val],axis=1), 
