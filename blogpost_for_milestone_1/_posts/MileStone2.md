@@ -17,7 +17,7 @@ As depicted in the figure above, it is clear that the majority of shots and goal
 
 **Shot counts by angle**
 
-![shot counts by angle](/assets/images/shot_by_angle.PNG)
+![shot counts by angle](../assets/images/shot_by_angle.PNG)
 
 The shot count histogram, categorized by shot angle, reveals that hockey players tend to favor shots from the front (with angles ranging from 0 to 45 degrees) over shots from the sides with wider angles. This preference is reasonable, as taking a shot with a very wide angle increases the likelihood of missing the target.
 
@@ -25,7 +25,7 @@ It's worth noting that there were instances where shot angles exceeded 90 degree
 
 **Shot by both distance and angle from the net**
 
-![shot distance and angle](/assets/images/shot_by_distance_and_angle.PNG)
+![shot distance and angle](../assets/images/shot_by_distance_and_angle.PNG)
 
 By considering both shot distance and shot angle together, we can make the following observations:
 
@@ -37,9 +37,9 @@ By considering both shot distance and shot angle together, we can make the follo
 
 In this section, we explore the relationship between the goal rate and two key features: shot distance and shot angle:
 
-![goal rate by distance](/assets/images/goal_rate_by_distance.PNG)
+![goal rate by distance](../assets/images/goal_rate_by_distance.PNG)
 
-![goal rate by angle](/assets/images/goal_rate_by_angle.PNG)
+![goal rate by angle](../assets/images/goal_rate_by_angle.PNG)
 
 - The first chart illustrates that as shots get closer to the target, their likelihood of becoming a goal increases. However, there's an interesting observation where shots from distances greater than 160 feet exhibit a notably higher goal rate compared to those in the 40 to 80 feet range. This might be due to the limited number of shots taken from these extremely long distances, making the goal rate for far-distance shots less reliable.
 
@@ -51,13 +51,13 @@ In this part, we attempt to identify potential errors within the dataset. In par
 
 Our intention is to scrutinize the presence of far-distance shots taken without an empty net and investigate the underlying reasons if such shots are observed.
 
-![goal non empty net](/assets/images/goal_non_empty_net_by_distance.PNG)
+![goal non empty net](../assets/images/goal_non_empty_net_by_distance.PNG)
 
 The figure above clearly indicates the existence of shots within the range we described (between 150 to 170 feet) when the net was not empty.
 
 Upon examining the processed dataset, we have identified incorrect or inaccurate data.
 
-![wrong coordinates dataframe](/assets/images/wrong_coordinates.png)
+![wrong coordinates dataframe](../assets/images/wrong_coordinates.png)
 
 As an example, consider the shot taken at 10:27 during the second period of the game between FLA and DET on December 24, 2016, which was recorded with incorrect coordinates and can be seen in the above figure (highlighted in white).
 
