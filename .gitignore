@@ -160,11 +160,6 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-# ignore data directories
-src/data
-
-# ignore data directories
-src/data/data/
 
 # Data files
 *.csv
@@ -173,12 +168,10 @@ src/data/data/
 *.pdf
 *.numbers
 
-# personal files Aayush
-src/01_baseline_model.ipynb
 
-# model files
-src/**.pkl
-**.pptx
+# ignore the src/ directly as it is not required for serving
+src/**
+docker-project-template/
 
 
 
