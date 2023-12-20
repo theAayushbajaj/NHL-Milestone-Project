@@ -64,6 +64,15 @@ def plot_classification_report(y_true, y_pred):
     plt.close()  # Close the plot to free memory
     return classification_report_filename
 
+def get_classification_report(y_val, y_pred):
+    accuracy = (y_val == y_pred).mean()
+    print(np.unique(y_pred))
+    print(f'Accuracy: {accuracy:.2%}')
+    print('1. The F-1 score of the model {}\n'.format(f1_score(y_val, y_pred, average='macro')))
+    print('2. The recall score of the model {}\n'.format(recall_score(y_val, y_pred, average='macro')))
+    print('3. Classification report \n {} \n'.format(classification_report(y_val, y_pred)))
+    print('4. Confusion matrix \n {} \n'.format(confusion_matrix(y_val, y_pred)))
+
 def draw_missing_data_table(df):
     '''
     Docstring: Returns a datarframe with percent of missing/nan values per feature/column
