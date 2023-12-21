@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import logging
 from flask import Flask, jsonify, request, abort
+from flask import current_app
 import sklearn
 import pandas as pd
 import joblib
@@ -24,10 +25,12 @@ import pickle
 import numpy as np
 
 
+
 LOG_FILE = os.environ.get("FLASK_LOG", "flask.log")
 
 
 app = Flask(__name__)
+COMET_API_KEY = open('comet_api_key.txt').read().strip()
 
 
 @app.before_first_request
@@ -45,17 +48,20 @@ def before_first_request():
     if not os.path.exists('../models'):
         os.makedirs('../models')
 
-    if not Path(f'./models/Q6ens_s.joblib').exists():
-        logging.info('Downloading model from comet.ml')
-        api = API()
-        # Download a Registry Model: eg "Q6-Full-ens" registered model name
-        api.download_registry_model("binulal", "Q6-Full-ens", "2.0.0",
-                            output_path="./models", expand=True)
+    # load default model
+    if not Path(f'./models/03_baseline_model_question1.pkl').exists():
+        logging.info('Downloading default model from comet.ml')
+        api = API(api_key=COMET_API_KEY)
+        # Download a Registry model: eg "Q6-Full-ens" registered model name
+        api.download_registry_model(workspace="2nd milestone", 
+                                    registry_name="03_baseline_model_question1.pkl", 
+                                    version="1.1.0",
+                                    output_path="../models", 
+                                    expand=True)
 
-    logging.info('Default model loaded: Logistic Regression Baseline with Distance and Angle features')
+    logging.info('Default model loaded: Logistic Regression Baseline with Distance feature')
 
-    global Model
-    Model = joblib.load('./models/Q6ens_s.joblib')
+    app.model = joblib.load('../models/03_baseline_model_question1.pkl')
 
 
 @app.route("/logs", methods=["GET"])
@@ -63,9 +69,11 @@ def logs():
     """Reads data from the log file and returns them as the response"""
     
     # TODO: read the log file specified and return the data
-    raise NotImplementedError("TODO: implement this endpoint")
+    response = {}
+    with open(LOG_FILE) as f:
+        for line in f:
+            response[line] = line
 
-    response = None
     return jsonify(response)  # response must be json serializable!
 
 
@@ -90,25 +98,37 @@ def download_registry_model():
     json = request.get_json()
     app.logger.info(json)
 
-    # TODO: check to see if the model you are querying for is already downloaded
-    
+    # Check if the requested model is already loaded
+    if hasattr(app, 'model') and app.model_name == json['model']:
+        logging.info(f'Model {json["model"]} is already loaded.')
+        model_loaded = True
+    else:
+        # Existing logic to download and load the model
+        logging.info(f'Downloading model {json["model"]} from comet.ml')
+        api = API(api_key=COMET_API_KEY)
+        # Download a Registry model: eg "Q6-Full-ens" registered model name
+        try:
+            api.download_registry_model(workspace=json['workspace'],
+                                        registry_name=json['model'],
+                                        version=json['version'],
+                                        output_path="../models",
+                                        expand=True)
+            # After loading the new model, store it in the app context
+            model = joblib.load(f'../models/{json["model"]}.joblib')
+            app.model = model
+            app.model_name = json['model']  # Store the model name for future checks
+        except Exception as e:
+            logging.info(f'Exception: {e}, Using default model')
+            
+        model_loaded = True
 
-    # TODO: if yes, load that model and write to the log about the model change.  
-    # eg: app.logger.info(<LOG STRING>)
-    
-    # TODO: if no, try downloading the model: if it succeeds, load that model and write to the log
-    # about the model change. If it fails, write to the log about the failure and keep the 
-    # currently loaded model
+    response = json
+    response['model_loaded'] = model_loaded 
+    app.logger.info(response)
+    return jsonify(response)  # response must be json serializable!
 
     # Tip: you can implement a "CometMLClient" similar to your App client to abstract all of this
     # logic and querying of the CometML servers away to keep it clean here
-
-    raise NotImplementedError("TODO: implement this endpoint")
-
-    response = None
-
-    app.logger.info(response)
-    return jsonify(response)  # response must be json serializable!
 
 
 @app.route("/predict", methods=["POST"])
@@ -123,9 +143,29 @@ def predict():
     app.logger.info(json)
 
     # TODO:
-    raise NotImplementedError("TODO: implement this enpdoint")
-    
-    response = None
+    json = request.get_json()
+    #log the data received (takes a lot of space)
+    #app.logger.info(json)
+    #print(json)
+    X = pd.DataFrame.from_dict(json)
+    logging.info(f'First 5 rows of input: {X.head()}')
+    #or pd.read_json()
+
+    try:
+        model = current_app.model
+        logging.info('Default model loaded: Logistic Regression Baseline with Distance and Angle features')
+    except Exception as e:
+        logging.info(f'Exception: {e}')
+
+    y_pred = model.predict_proba(X)[:,1]
+    logging.info(f'First 5 predictions {y_pred[:5]}')
+    response = pd.DataFrame(y_pred).to_json()
+    logging.info(f'response sample {response}')
+
+    logging.info(f'Number of predictions made: {y_pred.shape[0]}')
+    unique, counts = np.unique(y_pred, return_counts=True)
+    goal_percentage = counts[1]/y_pred.shape[0]
+    logging.info(f'Goal percentage: {goal_percentage}, Number of Goals: {counts[1]}')
 
     app.logger.info(response)
     return jsonify(response)  # response must be json serializable!
