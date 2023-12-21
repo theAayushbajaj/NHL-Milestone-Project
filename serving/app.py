@@ -30,7 +30,7 @@ LOG_FILE = os.environ.get("FLASK_LOG", "flask.log")
 
 
 app = Flask(__name__)
-COMET_API_KEY = open('comet_api_key.txt').read().strip()
+COMET_API_KEY = open('../comet_api_key.txt').read().strip()
 
 
 @app.before_first_request
@@ -39,20 +39,17 @@ def before_first_request():
     Hook to handle any initialization before the first request (e.g. load model,
     setup logging handler, etc.)
     """
-    # TODO: setup basic logging configuration
-    logging.basicConfig(filename=LOG_FILE, level=logging.INFO)
 
-    # TODO: any other initialization before the first request (e.g. load default model)
+    logging.basicConfig(filename=LOG_FILE, level=logging.INFO)
     comet_ml.init()
-    # create models directory if not exists
+
     if not os.path.exists('../models'):
         os.makedirs('../models')
 
-    # load default model
-    if not Path(f'./models/03_baseline_model_question1.pkl').exists():
+    default_model_path = '../models/03_baseline_model_question1.pkl'
+    if not Path(default_model_path).exists():
         logging.info('Downloading default model from comet.ml')
         api = API(api_key=COMET_API_KEY)
-        # Download a Registry model: eg "Q6-Full-ens" registered model name
         api.download_registry_model(workspace="2nd milestone", 
                                     registry_name="03_baseline_model_question1.pkl", 
                                     version="1.1.0",
@@ -60,8 +57,8 @@ def before_first_request():
                                     expand=True)
 
     logging.info('Default model loaded: Logistic Regression Baseline with Distance feature')
+    app.model = joblib.load(default_model_path)
 
-    app.model = joblib.load('../models/03_baseline_model_question1.pkl')
 
 
 @app.route("/logs", methods=["GET"])
