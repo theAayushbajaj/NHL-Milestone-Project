@@ -49,15 +49,15 @@ def before_first_request():
         logging.info('Downloading default model from comet.ml')
         api = API(api_key=COMET_API_KEY)
         #get the Model object
-        model = api.get_model(workspace="2nd-milestone", model_name="03_baseline_model_question1")
+        model = api.get_model(workspace="2nd-milestone", model_name="03_baseline_models_question1")
 
         # Download a Registry Model:
-        model.download("1.1.0", output_path="../models", expand=True)
+        model.download("1.1.0", output_folder="../models", expand=True)
         # api.download_registry_model(workspace="2nd-milestone", 
-        #                             registry_name="03_baseline_model_question1.pkl", 
-        #                             version="1.1.0",
-        #                             output_path="../models", 
-        #                             expand=True)
+        #                     registry_name="03_baseline_models_question1", 
+        #                     version="1.1.0",
+        #                     output_path="./models", 
+        #                     expand=True)
 
     logging.info('Default model loaded: Logistic Regression Baseline with Distance feature')
     app.model = model #joblib.load(default_model_path)

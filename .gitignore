@@ -175,4 +175,5 @@ docker-project-template/
 COMET_API_KEY.txt
 **.zip
 **.pkl
+**.ipynb
 
