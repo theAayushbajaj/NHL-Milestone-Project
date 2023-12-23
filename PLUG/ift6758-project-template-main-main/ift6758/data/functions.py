@@ -1,0 +1,657 @@
+import os.path
+import requests
+import json
+import pandas as pd
+import numpy as np
+from ift6758.data.tidyData import tidyData
+from scipy.ndimage import gaussian_filter
+
+#function returning one game dataframe
+def loadstats_pergame(game_id: str) -> dict:
+
+    #main dataframe dictionary set for all games
+    data = {}
+    
+    #define gametype
+    #REGULAR_SEASON = "02"
+    gameNumber = 1
+    rstatus = 0
+    
+    #first game id
+#     gameIDfirst = str(game_id) + REGULAR_SEASON + format(gameNumber, '04d')
+    
+#     print(gameIDfirst)
+
+    #loop through regular season
+    #while the game can be found in the api and gameNumber less than or equal to 1271
+    #while gameNumber <= 1271 and rstatus<400:
+    #gameID = str(game_id) + REGULAR_SEASON + format(gameNumber, '04d')
+        # filename=f'{filepath}/{game_id}/{gameID}.json'
+        # #checks if dataset in targetyear exist at filepath
+        # if os.path.isfile(filename):
+        #     #if exist load all data for targetyear and return as pandas Dataframe
+        #     with open(filename) as f:
+        #         data[gameID] = json.load(f)
+        #         gameNumber += 1
+        #     f.close()
+        #     continue
+
+        #request server api
+    r = requests.get(f"https://statsapi.web.nhl.com/api/v1/game/{game_id}/feed/live/")
+    
+    #print(r)
+
+    #if no error at reponse, store in dataframe
+    if not (r.status_code >= 400):
+        #check for different status code other than 200
+        if r.status_code != 200:
+            print(f'Status code: {r.status_code} at gameID:{game_id}. Unexpected.')
+        #save and store in data folder
+        data[game_id] = r.json()
+        #os.makedirs(os.path.dirname(filename), exist_ok=True)
+#         with open(filename, 'w') as f:
+#             json.dump(data[gameID], f, ensure_ascii=False, indent=4)
+        #f.close()
+        gameNumber += 1
+        #continue
+    else:
+        #game not added if it does not exist
+        print(f'Error code: {r.status_code} at gameID:{game_id}. Game not found.')
+        rstatus = r.status_code
+        gameNumber += 1
+    #print(f'size of data in regular season: {len(data)}')
+
+    #store the index where the playoffgames begin in the metaData section of first game
+    #data[gameIDfirst]['metaData']['playoffIndex'] = len(data)
+    
+
+    return pd.DataFrame.from_dict(data)
+
+#function for data acquisition
+def loadstats(targetyear: int, filepath: str, playoffs=True, regular=True) -> pd.DataFrame:
+    """
+    load NHL play-by-play data for both regular season and playoffs.
+    
+
+    Parameters
+    ----------
+    targetyear : int
+        year season of the games.
+        eg. 2016 -> 2016-2017 season
+    filepath : str
+        filepath = './data/'
+        subgrouped in years eg. './data/targetyear/gameID.json'
+
+
+    Returns
+    -------
+    pd.DataFrame
+        pandas DataFrame of the play-by-play data for the whole year.
+
+    Examples
+    --------
+    >>> loadstats(2016,'./data')
+    pd.DataFrame
+    """
+
+    #main dataframe dictionary set for all games
+    data = {}
+    
+    if regular == True:
+        #define gametype
+        REGULAR_SEASON = "02"
+        gameNumber = 1
+        rstatus = 0
+    
+        #first game id
+        gameIDfirst = str(targetyear) + REGULAR_SEASON + format(gameNumber, '04d')
+    
+        #loop through regular season
+        #while the game can be found in the api and gameNumber less than or equal to 1271
+        while gameNumber <= 1271 and rstatus<400:
+            gameID = str(targetyear) + REGULAR_SEASON + format(gameNumber, '04d')
+            filename=f'{filepath}/{targetyear}/{gameID}.json'
+            #checks if dataset in targetyear exist at filepath
+            if os.path.isfile(filename):
+                #if exist load all data for targetyear and return as pandas Dataframe
+                with open(filename) as f:
+                    data[gameID] = json.load(f)
+                    gameNumber += 1
+                f.close()
+                continue
+
+            #request server api
+            r = requests.get(f"https://statsapi.web.nhl.com/api/v1/game/{gameID}/feed/live/")
+
+            #if no error at reponse, store in dataframe
+            if not (r.status_code >= 400):
+                #check for different status code other than 200
+                if r.status_code != 200:
+                    print(f'Status code: {r.status_code} at gameID:{gameID}. Unexpected.')
+                #save and store in data folder
+                data[gameID] = r.json()
+                os.makedirs(os.path.dirname(filename), exist_ok=True)
+                with open(filename, 'w') as f:
+                    json.dump(data[gameID], f, ensure_ascii=False, indent=4)
+                f.close()
+                gameNumber += 1
+                continue
+            else:
+                #game not added if it does not exist
+                print(f'Error code: {r.status_code} at gameID:{gameID}. Game not found.')
+                rstatus = r.status_code
+                gameNumber += 1
+        print(f'size of data in regular season: {len(data)}')
+    
+        #store the index where the playoffgames begin in the metaData section of first game
+        data[gameIDfirst]['metaData']['playoffIndex'] = len(data)
+    
+    if playoffs == True:
+        #4 rounds, first round 8 faceoffs, second round 4 faceoffs, third round 2 faceoffs. final round out of 7
+        PLAYOFFS= "03"
+
+        playoffround = 1 
+        #note 0 round (qualifying) in 2019-2020
+        if targetyear == 2019:
+            playoffround = 0
+        
+
+        #loop through 4 playoffs rounds
+        while playoffround <= 4:
+            matchup = 1
+            if playoffround == 0:
+                matchup = 0
+            #define number of matchups in each round
+            if (playoffround == 0):
+                #9 match ups in 2019
+                matchupmax = 9
+            elif (playoffround == 1):
+                matchupmax = 8
+            elif (playoffround == 2):
+                matchupmax = 4
+            elif (playoffround == 3):
+                matchupmax = 2
+            elif (playoffround == 4):
+                matchupmax = 1
+            #loop through matchups
+            while matchup <= matchupmax:
+                rstatus = 0
+                playoffgame = 1
+                #loop through games up to 7
+                while playoffgame <= 7 and rstatus<400:
+                    gameID = str(targetyear) + PLAYOFFS + '0' + str(playoffround) + str(matchup) + str(playoffgame)
+                    filename=f'{filepath}/{targetyear}/{gameID}.json'
+                    #checks if dataset in targetyear exist at filepath
+                    if os.path.isfile(filename):
+                        #if exist load all data for targetyear and return as pandas Dataframe
+                        with open(filename) as f:
+                            data[gameID] = json.load(f)
+                            playoffgame += 1
+                        f.close()
+                        continue
+
+                    #request server api
+                    r = requests.get(f"https://statsapi.web.nhl.com/api/v1/game/{gameID}/feed/live/")
+
+                    #if no error at reponse, store in dataframe
+                    if not (r.status_code >= 400):
+                        #check for different status code other than 200
+                        if r.status_code != 200:
+                            print(f'Status code: {r.status_code} at gameID:{gameID}. Unexpected.')
+                        #save and store in data folder
+                        data[gameID] = r.json()
+                        os.makedirs(os.path.dirname(filename), exist_ok=True)
+                        with open(filename, 'w') as f:
+                            json.dump(data[gameID], f, ensure_ascii=False, indent=4)
+                        f.close()
+                        playoffgame += 1
+                        continue
+                    else:
+                        #game not added if it does not exist
+                        print(f'Error code: {r.status_code} at gameID:{gameID}. Game not found.')
+                        rstatus = r.status_code
+                        playoffgame += 1
+                matchup += 1
+            playoffround += 1
+        print(f'size of data in regular season & playoffs: {len(data)}')
+    
+
+    return pd.DataFrame.from_dict(data)
+
+
+#pre-load all years may crash if low on memory
+def load_genGridi(n=5):
+    binned_gridi = {}
+    dfs_tidyi = {}
+    Teamnamesi = {}
+    for year in list(range(2016,2016+n)):
+        binned_gridi[str(year)],dfs_tidyi[str(year)],Teamnamesi[str(year)] = load_genGrid(year, 'Both')
+        
+    return binned_gridi,dfs_tidyi,Teamnamesi
+
+
+#generate and load gridtotals for year
+def load_genGrid(year=2020, sType='Both'):
+    """
+    generate agregated hockey data grid for plotly graph object
+
+    Parameters
+    ----------
+    year:int 
+        year of the hockey game, default=2020
+    sType:str->'Both','Regular','PlayOffs'
+        selection for which part of the season to agregate, default='Both'
+    Returns
+    -------
+    avg_binned_grid: A team specificed normalized and smoothed binned league average comparison for shots taken on the 2D hockey map.
+    dfs_tidy:A tidied dataframe for year/type specifcied
+    Teamnames: all teamnames from year
+    Examples
+    --------
+    avg_binned_grid,dfs_tidy,Teamnames = load_genGrid(year=2020, type='Both')
+    """
+    
+    
+    #load data
+    dfs = loadstats(year,'./data')
+    #tidydata
+    dfs_tidy = tidyData(dfs)
+
+    
+    #select between regular and playoff season
+    firstplayoff = str(year) + "03" + format(0, '04d')
+    if sType == 'Both':
+        pass
+    elif sType == 'PlayOffs':
+        dfs_tidy = dfs_tidy[dfs_tidy.game_id >= firstplayoff]
+    elif sType == 'Regular':
+        dfs_tidy = dfs_tidy[dfs_tidy.game_id < firstplayoff]
+    else:
+        raise Exception('type mismatch')
+    
+    #convert to small image bin coordinates
+    dfs_tidy = dfs_tidy[dfs_tidy['coordinates_x'].notna()]#exclude na coordinates
+    dfs_tidy = dfs_tidy[dfs_tidy['coordinates_y'].notna()]#exclude na coordinates
+    
+    #fix and rotate coordinates to relative sides
+    dfs_tidy_new = dfs_tidy.apply(fixCoOrdinates, axis=1, result_type="expand")
+    dfs_tidy.drop( dfs_tidy_new.columns, axis='columns', inplace=True )
+    dfs_tidy = dfs_tidy.join(dfs_tidy_new)
+    
+
+
+    Teamnames = dfs_tidy.awayTeam.unique()
+    Teamnames = np.unique(np.append(Teamnames,dfs_tidy.homeTeam.unique()))
+
+    
+    #binning totals
+    #binned_grid = np.zeros((85,200))
+    binned_grid = np.zeros((100,85))
+    #print(avg_binned_grid.shape)
+    for i, p in dfs_tidy.iterrows():
+        #print(i)
+        #print(p.coordinates_y)
+        #print(p.coordinates_x)
+        binned_grid[int(p.coordinates_y),int(p.coordinates_x)]+=1
+
+    return binned_grid,dfs_tidy,Teamnames
+    
+    
+
+    
+def genTeamGrid(binned_grid,dfs_tidy:pd.DataFrame,Teamnames,selected_team='Toronto Maple Leafs'):
+            
+    #generate teamGrid
+    
+    #check if teamname exist
+    if not (selected_team in Teamnames):
+        raise Exception('team name mismatch')
+    
+
+    #binning totals for one team
+    #team_binned_grid = np.zeros((85,200))
+    team_binned_grid = np.zeros((100,85))
+    #print(team_binned_grid.shape)
+    for i, p in dfs_tidy[dfs_tidy.teamInfo == selected_team].iterrows():
+        #print(i)
+        #print(p.coordinates_y)
+        #print(p.coordinates_x)
+        team_binned_grid[int(p.coordinates_y),int(p.coordinates_x)]+=1
+
+    #average agregated shots across the season and smooth with gaussian filter
+   
+    team_binned_grid = team_binned_grid- (binned_grid / len(Teamnames))
+    team_binned_grid = gaussian_filter(team_binned_grid, sigma=2)
+    
+    return team_binned_grid
+
+
+
+def setContour(team_binned_grid,contourN = 12):
+
+    #find and set contour layout
+    
+    maxG = np.max(team_binned_grid)
+    minG = np.min(team_binned_grid)
+
+    if abs(maxG) > abs(minG):
+        midC = 1/((abs(maxG)/abs(minG))+1)
+    else:
+        midC = 1-(1/((abs(minG)/abs(maxG))+1))
+    
+    colorscale = [[0, 'blue'],[max(0,midC-0.02), 'white'], [min(1,midC+0.02), 'white'],[1, 'red']]
+    #colorscale = [[0.1, 'rgb(255, 255, 255)'], [0, 'rgb(46, 255, 213)'], [1, 'rgb(255, 28, 251)']]
+
+    #returns colorscale and min/max grid values
+    return colorscale,minG,maxG
+
+
+
+def fixCoOrdinates( event : pd.Series ) -> pd.Series :
+    """
+    Apply this method to NHL Data dataframe to rotate cordinate fields by 180
+
+    Parameters
+    ----------
+    event : pd.Series
+        a row of an NHL Dataset
+        The two indices event.coordinates_x and event.coordinates_y should be available 
+
+    Returns
+    -------
+    pd.Series
+        a series with index ["coordinates_x", "coordinates_y"] 
+
+    Example
+    --------
+    >>> rotatedCoOrd_DF = NHLData.apply(fixCoOrdinates, axis=1, result_type="expand")
+    >>> NHLData.drop( rotatedCoOrd_DF.columns )
+    >>> NHLData = NHLData.join( rotatedCoOrd_DF )
+
+    
+    """
+    x, y = event.coordinates_x, event.coordinates_y
+    # don't need to change the coordinates for home team on period 1,3,5..etc 
+    # just change the coordinate for away side and rotate by 180 for periods 1,3,5 (and not 2,4,6...etc) and home team on 2,4,6..etc. 
+    if x > 0:
+        x, y = event.coordinates_x * -1.0, event.coordinates_y * -1.0
+
+    #recenter
+    x += 50    
+
+    #rotate 90 degrees clockwise
+    rx = y
+    ry = -x
+
+    #recalibrate to image coordinate axis
+    rx += 42.5
+    ry += 50
+
+    return pd.Series( [rx, ry], index=["coordinates_x", "coordinates_y"] )
+
+
+def processShootersAndGoalies(playerJson):
+    """
+    """
+    # normalize json
+    x = pd.json_normalize(playerJson )
+    
+    # rename scorer to shooter
+    x = x.applymap(lambda x : "Shooter" if x == "Scorer" else x )
+    
+    # drop 'assists'
+    x.drop_duplicates(subset="playerType", keep=False, inplace=True)
+    
+    # reset index to player type
+    y = x.set_index("playerType")
+    
+    # return series fullname
+    return y["player.fullName"]
+    
+    
+def getShootersAndGoalies(  playerJson ):
+    """
+    """
+    shootersAndGoalies = playerJson.apply( processShootersAndGoalies )
+    return shootersAndGoalies.iloc[0]
+    
+def processGameData(gameJSON):
+    """
+    """
+    with open( gameJSON ) as gameJson:
+        try:
+            # try loading the json
+            data = json.load(gameJson)
+            
+            # get gameid and season
+            gameID = data["gameData"]["game"]["pk"]
+            gameSeason = data["gameData"]["game"]["season"]
+            
+            #print(data["gameData"]["game"]["pk"])
+            #print(data["gameData"]["game"]["season"])
+            #print(data["gameData"]["game"]["type"])
+            #print(data["gameData"]["datetime"]["dateTime"])
+            #print(data["gameData"]["datetime"]["endDateTime"])
+            #print(type(data["liveData"]["plays"]["allPlays"]))
+            
+            # Get all plays data
+            #playDF = pd.json_normalize( data = data["liveData"]["plays"]["allPlays"] )
+            playDF = pd.json_normalize( data = data, record_path = ["liveData", "plays", "allPlays"], meta = [ "gamePk" ] )
+            #playDF = pd.json_normalize( data , record_path = "allPlays" )
+            
+            # Filter out goals and shots into a dataframe
+            shotsAndGoalsDF = playDF[playDF["result.event"].isin(["Shot","Goal"])]
+            
+            # extract players data as a dataframe
+            playersDF = pd.DataFrame(shotsAndGoalsDF["players"])
+            
+            # Get a data frame with Shooters and Goalie columns
+            #  - traverse each row of playersDF, and get a DF with two new columns
+            shooterAndGolieDF = playersDF.apply( getShootersAndGoalies, axis = 1, result_type="expand" )
+            #gameIdAndSeasonDF = playersDF.apply( lambda x: pd.Series([, 2], index=['foo', 'bar']), axis=1)
+            
+            # Update 'shots and goals' dataframe with 'shooters and goalies'
+            shotsAndGoalsDF = shotsAndGoalsDF.join(shooterAndGolieDF)
+            #print(shotsAndGoalsDF.columns)
+        
+            # TODO: drop unnecessary columns 
+            # TODO: rename Columns
+            # TODO: reset index
+            
+        except Exception as inst:
+            print(inst)
+            
+        else:
+            return shotsAndGoalsDF
+        
+        
+def getNHLData( listOfSeasons ):
+    """
+        function to convert all events of every game into a pandas dataframe.
+        Use your tool to download data from the 2016-17 season all the way up to the 2020-21 season. 
+
+    """
+    # get all games for the requsted period by calling above funciion
+    # keep adding to a pandas data frame
+    # Columns = [ game time/period information, game ID, team information (which team took the shot), 
+    #             indicator if its a shot or a goal, the on-ice coordinates, the shooter and goalie name (don’t worry about assists for now), 
+    #             shot type, if it was on an empty net, and whether or not a goal was at even strength, shorthanded, or on the power play ]
+    
+    for season in listOfSeasons:
+        #print("Loading data for {season}", season)
+        loadstats(season, './data')
+
+    NHLDataDF = pd.DataFrame()
+    
+    for season in listOfSeasons:
+        for game in os.listdir( os.path.join("./data", str(season))):
+            gameJSON = os.path.join( "./data", str(season), game )
+            #print("Processing game data ", gameJSON)
+            try:
+                gameDF = processGameData(gameJSON)
+                
+            except Exception as inst:
+                print(inst) 
+                
+            else:
+                #print(type(gameDF))
+                NHLDataDF = NHLDataDF.append(gameDF)
+                #print(NHLDataDF.shape)
+              
+
+    return NHLDataDF
+
+
+
+
+def distAngle_FromGoal(x,y,homeSide,period,teamInfo,homeTeam,awayTeam,periodType) :
+    """
+    find distance and angle from coordinates
+    
+    """
+
+    #assumes all opponent_coordinate is set to [-90,0] first
+    goal_x , goal_y = -90,0
+
+    # just change the coordinate for away side and rotate by 180 for periods 1,3,5 (and not 2,4,6...etc) and home team on 2,4,6..etc. 
+    # if x > 0:
+    #     x, y = event.coordinates_x * -1.0, event.coordinates_y * -1.0
+    
+    #even peiod 2,4,6
+    if(str(homeSide) != 'NA' and str(periodType != 'SHOOTOUT')):
+        if( int(period ) % 2 == 0):
+            #home start on the right side change coordinates for homeTeam
+            if( str(teamInfo) == str(homeTeam) ) and ( str(homeSide) == 'right' ):
+                #x, y = x * -1.0, y * -1.0
+                goal_x , goal_y = 90,0
+            #home start on the left side change coordinates for awayTeam
+            elif( str(teamInfo) == str(awayTeam) ) and ( str(homeSide) == 'left' ):
+                #x, y = x * -1.0, y * -1.0
+                goal_x , goal_y = 90,0
+        #odd peiod 1,3,5
+        else:
+            #home start on the right side change coordinates for awayTeam
+            if( str(teamInfo) == str(awayTeam) ) and ( str(homeSide) == 'right' ):
+                #x, y = x * -1.0, y * -1.0
+                goal_x , goal_y = 90,0
+            #home start on the left side change coordinates for homeTeam    
+            elif( str(teamInfo) == str(homeTeam) ) and ( str(homeSide) == 'left' ):
+               #x, y = x * -1.0, y * -1.0
+               goal_x , goal_y = 90,0
+    else:
+        #apply heuristic if rinkSide info is not available
+        #apply heuristic for shootouts
+        if x > 0:
+            #x, y = x * -1.0, y * -1.0
+            goal_x , goal_y = 90,0
+
+    # recentered calculations
+    # #recenter
+    # x += 50    
+
+    # #rotate 90 degrees clockwise
+    # rx = y
+    # ry = -x
+
+    # #recalibrate to image coordinate axis
+    # rx += 42.5
+    # ry += 50
+
+    # #calculate distance from goal
+    # dist = np.sqrt((42.5-rx)**2 + (90-ry)**2)
+
+    # if ry>90 and rx>42.5:
+    #     angle = np.arcsin(0)+np.arcsin(y-90/dist)
+    # elif y>90 and x<42.5:
+    #     angle = np.arcsin(-1)-np.arcsin(y-90/dist)
+    # #for general case
+    # else:
+    #     np.arcsin(rx-42.5/dist) 
+
+    # angle = abs(angle)
+    # return rx,ry,dist,angle
+
+
+    #calculate distance from goal
+    dist = np.sqrt((goal_x-x)**2 + (goal_y-y)**2)
+    #avoid divide by zero
+    eps = 1e-8
+
+    #behind the net
+    if y>=0 and x>90 :
+        angle = np.arcsin(0)+np.arcsin((abs(x)-90)/dist)
+    elif y<0 and x>90:
+        angle = np.arcsin(-1)-np.arcsin((abs(x)-90)/dist)
+    elif y<0 and x<-90:
+        angle = np.arcsin(0)+np.arcsin((abs(x)-90)/dist)
+    elif y>=0 and x<-90:
+        angle = np.arcsin(-1)-np.arcsin((abs(x)-90)/dist)
+    #for general case
+    else: 
+        if dist < eps:
+            angle = 0
+        else:
+            if goal_x == 90:
+                angle = np.arcsin(y/dist)
+            else:
+                angle = np.arcsin(-y/dist)
+
+    # set default angle if distance is at goal
+
+
+    #angle = abs(angle)
+    return dist,np.degrees(angle)
+    
+#remember to process after (within to prevent data leakage) train-test split/folds
+def pre_process(dfs: pd.DataFrame, hd=False) -> pd.DataFrame:
+    
+    #drop irrelevant columns
+    dfs = dfs.drop(['game_id','event_idx','periodTime'], axis=1)
+
+    # remove all columns with  =>60% pd.NA
+    #dfs = dfs.loc[:,(dfs.isnull().sum() / len(dfs)) < 0.6]
+    dfs = dfs.drop(['angle_speed','strength'], axis=1)
+
+
+    # remove all rows with null values
+    dfs = dfs[dfs['speed'].notnull()]
+    dfs = dfs[dfs['homeSide'].notnull()]
+    dfs = dfs[dfs['shotType'].notnull()]
+    dfs = dfs[dfs['isGoal'].notnull()]
+    dfs = dfs[dfs['rebound'].notnull()]
+    dfs = dfs[dfs['emptyNet'].notnull()]
+    dfs = dfs[dfs['goalie'].notnull()]
+
+    #change of variable
+    dfs['isGoal'].replace([False, True], [0.0, 1.0], inplace=True)
+    dfs['rebound'].replace([False, True], [0.0, 1.0], inplace=True)
+    dfs['emptyNet'].replace([False, True], [0.0, 1.0], inplace=True)
+    dfs['homeSide'].replace(['right', 'left'], [0.0, 1.0], inplace=True)
+
+    #one hot/ordinal encoding
+    #dfs['periodType'].replace(['REGULAR', 'OVERTIME', 'SHOOTOUT'], [1, 2, 3], inplace=True)
+    dfs = dfs.merge(pd.get_dummies(dfs['periodType'], prefix='periodType'), left_index=True, right_index=True)
+    dfs = dfs.drop(['periodType'], axis=1)
+    dfs = dfs.merge(pd.get_dummies(dfs['eventType_last'], prefix='eventType_last'), left_index=True, right_index=True)
+    dfs = dfs.drop(['eventType_last'], axis=1)
+    dfs = dfs.merge(pd.get_dummies(dfs['teamInfo'], prefix='teamInfo'), left_index=True, right_index=True)
+    dfs = dfs.drop(['teamInfo'], axis=1)
+    dfs = dfs.merge(pd.get_dummies(dfs['shotType'], prefix='shotType'), left_index=True, right_index=True)
+    dfs = dfs.drop(['shotType'], axis=1)
+
+    #one hot encode large feature columns if hd is True
+    if hd == True:
+        dfs = dfs.merge(pd.get_dummies(dfs['shooter'], prefix='shooter'), left_index=True, right_index=True)
+        dfs = dfs.merge(pd.get_dummies(dfs['goalie'], prefix='goalie'), left_index=True, right_index=True)
+    dfs = dfs.drop(['shooter'], axis=1)
+    dfs = dfs.drop(['goalie'], axis=1)
+
+    dfs = dfs.merge(pd.get_dummies(dfs['homeTeam'], prefix='homeTeam'), left_index=True, right_index=True)
+    dfs = dfs.drop(['homeTeam'], axis=1)
+    dfs = dfs.merge(pd.get_dummies(dfs['awayTeam'], prefix='awayTeam'), left_index=True, right_index=True)
+    dfs_cleaned = dfs.drop(['awayTeam'], axis=1)
+
+    #replace values in dataframe
+    #dfs.loc[(dfs['periodSeconds_last']==0) & (dfs['speed'].isnull()),'speed'] = 0
+
+    return dfs_cleaned
