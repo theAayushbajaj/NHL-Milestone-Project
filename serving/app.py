@@ -27,12 +27,17 @@ import json
 
 
 LOG_FILE = os.environ.get("FLASK_LOG", "flask.log")
-MODELS_DIR = "models_comet"
+MODELS_DIR = "../models"
 version = '1.0.0'
 app = Flask(__name__)
 COMET_API_KEY = "4f2CaGrgtsnenB0x7IkCejNGW" #os.environ.get('COMET_API_KEY')
-global model
-
+logging.basicConfig(filename=LOG_FILE, level=logging.INFO)
+logger = logging.getLogger('waitress')
+logger.setLevel(logging.INFO)
+fh = logging.FileHandler(LOG_FILE)
+fh.setLevel(logging.INFO)
+logger.addHandler(fh)
+model = None
 
 @app.before_first_request
 def before_first_request():
@@ -40,44 +45,45 @@ def before_first_request():
     Hook to handle any initialization before the first request (e.g. load model,
     setup logging handler, etc.)
     """
+    global model 
 
     logging.basicConfig(filename=LOG_FILE, level=logging.INFO)
-    global logger
-    logger = logging.getLogger('waitress')
-    logger.setLevel(logging.INFO)
-    fh = logging.FileHandler(LOG_FILE)
-    fh.setLevel(logging.INFO)
-    logger.addHandler(fh)
 
-    global model
     workspace_name = "2nd-milestone"
-    default_registry = "03_baseline_models_question1"
-    default_model = "03_baseline_models_question1.pkl"
+    default_registry = "03_baseline_models_question1_v2"
+    default_model = "03_baseline_models_question2_v2"
     default_model_dir = os.path.join(MODELS_DIR, default_model)
     request = {
         "workspace": workspace_name,
         "registry_name": default_registry,
-        "version": "1.1.0",
+        "version": "1.0.0",
     }
+
     if not os.path.exists(MODELS_DIR):
         os.makedirs(MODELS_DIR)
-
-    # default_model_path = '../models/03_baseline_model_question1.pkl'
+    
     if (not os.path.isfile(default_model_dir)):
-        logger.info(f"Downloading the default model {default_model} fom CometML")
+        app.logger.info(f"Downloading the default model {default_model} fom CometML")
         API(api_key=COMET_API_KEY).download_registry_model(**request, output_path=MODELS_DIR)
 
         if (not os.path.isfile(default_model_dir)):
-            logger.info("Cannot download the model. Check the comet project and API key.")
+            app.logger.info("Cannot download the model. Check the comet project and API key.")
         else:
-            logger.info("Downloaded the model succesfully.")
-            model = pickle.load(open(default_model_dir, "rb"))
-            print(f'--------------------model_object------------{model}')
+            app.logger.info("Downloaded the model succesfully.")
+            model = joblib.load(default_model_dir)
     else:
-        model = pickle.load(open(default_model_dir, "rb"))
-        print(f'--------------------model_object------------{model}')
-        # model.load_model(default_model_dir)
-        logger.info(f"The default model {default_model} already exist. Load default model.")
+        model = joblib.load(default_model_dir)
+        app.logger.info(f"The default model {default_model} already exist. Load default model.")
+
+    from sklearn.base import is_classifier
+    if not is_classifier(model):
+        print("Loaded object is not a scikit-learn classifier")
+
+    app.model = model
+    app.logger.info(f'App model: {app.model}')
+    app.model_name = default_model
+
+
 
 @app.route("/")
 def ping():
@@ -91,7 +97,6 @@ def logs():
 
     # TODO: read the log file specified and return the data
     response = {}
-    print("I am in the logs.......................")
     with open(LOG_FILE) as f:
         for line in f:
             response[line] = line
@@ -117,33 +122,32 @@ def download_registry_model():
 
     """
     # Get POST json data
+    global model
     json = request.get_json()
     model_name = json['model']
     app.logger.info(json)
 
     # Check if the requested model is already loaded
-    if hasattr(app, 'model') and app.model_name == json['model']:
-        logging.info(f'Model {json["model"]} is already loaded.')
+    if os.path.isfile(os.path.join(MODELS_DIR, model_name)):
+        app.logger.info(f'Model {json["model"]} is already downloaded.')
+        model = joblib.load(os.path.join(MODELS_DIR, model_name))
         model_loaded = True
     else:
         # Existing logic to download and load the model
-        logging.info(f'Downloading model {json["model"]} from comet.ml')
-        api = API(api_key=COMET_API_KEY)
-        # Download a Registry model: eg "Q6-Full-ens" registered model name
+        app.logger.info(f'Downloading model {json["model"]} from comet.ml')
+        #api = API(api_key=COMET_API_KEY)
         try:
-            api.download_registry_model(workspace=json['workspace'],
+            API(api_key=COMET_API_KEY).download_registry_model(workspace=json['workspace'],
                                         registry_name=json['model'],
                                         version=json['version'],
-                                        output_path="ift6758/ift6758/client/models_comet",
+                                        output_path="../models",
                                         expand=True)
-            # After loading the new model, store it in the app context
-            # model = joblib.load(f'../models/{json["model"]}.joblib')
-            # app.model = model
-            # app.model_name = json['model']  # Store the model name for future checks
-            global model
-            model = pickle.load(open(os.path.join(MODELS_DIR, model_name), "rb"))
+            app.logger.info(f'Model {json["model"]} downloaded successfully')
+            #model = pickle.load(open(os.path.join(MODELS_DIR, model_name), "rb"))
+            model = joblib.load(os.path.join(MODELS_DIR, model_name))
+            app.logger.info('Model loaded')
         except Exception as e:
-            logging.info(f'Exception: {e}, Using default model')
+            app.logger.info(f'Exception: {e}, Using default model')
 
         model_loaded = True
 
@@ -156,8 +160,7 @@ def download_registry_model():
 
     # Tip: you can implement a "CometMLClient" similar to your App client to abstract all of this
     # logic and querying of the CometML servers away to keep it clean here
-
-
+    
 @app.route("/predict", methods=["POST"])
 def predict():
     """
@@ -165,33 +168,23 @@ def predict():
 
     Returns predictions
     """
+    global model
     try:
         json_req = request.get_json()
         app.logger.info(json)
-        # workspace_name = "2nd-milestone"
-        # default_registry = "03_baseline_models_question1"
-        # default_model = "03_baseline_models_question1.pkl"
-        # default_model_dir = os.path.join(MODELS_DIR, default_model)
-        # model = pickle.load(open(default_model_dir, "rb"))
 
-        model = current_app.model
-        
         df = pd.read_json(json_req)
-        logging.info(f'First 5 rows of input: {df.head()}')
-        #global model
-        print(type(model))
-        # model = current_app.model
-        logging.info('Default model loaded: Logistic Regression Baseline with Distance and Angle features')
-        print(f'I want to see numpy.ndarray--------------------{model}')
-        y_pred = model.predict_proba(df)[:,1]
-        logging.info(f'First 5 predictions {y_pred[:5]}')
-        response = pd.DataFrame(y_pred).to_json()
-        logging.info(f'response sample {response}')
+        app.logger.info(f'First 5 rows of input: {df.head()}')
 
-        logging.info(f'Number of predictions made: {y_pred.shape[0]}')
+        y_pred = model.predict_proba(df)[:,1]
+        app.logger.info(f'First 5 predictions {y_pred[:5]}')
+        response = pd.DataFrame(y_pred).to_json()
+        #app.logger.info(f'response sample {response}')
+
+        app.logger.info(f'Number of predictions made: {y_pred.shape[0]}')
         unique, counts = np.unique(y_pred, return_counts=True)
         goal_percentage = counts[1]/y_pred.shape[0]
-        logging.info(f'Goal percentage: {goal_percentage}, Number of Goals: {counts[1]}')
+        app.logger.info(f'Goal percentage: {goal_percentage}, Number of Goals: {counts[1]}')
 
         app.logger.info(response)
         return jsonify(response)

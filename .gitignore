@@ -176,4 +176,7 @@ COMET_API_KEY.txt
 **.zip
 **.pkl
 **.ipynb
-
+serving/message.txt
+serving/utils.py
+**.png
+models/
