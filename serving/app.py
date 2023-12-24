@@ -30,7 +30,7 @@ LOG_FILE = os.environ.get("FLASK_LOG", "flask.log")
 MODELS_DIR = "../models"
 version = '1.0.0'
 app = Flask(__name__)
-COMET_API_KEY = "4f2CaGrgtsnenB0x7IkCejNGW" #os.environ.get('COMET_API_KEY')
+COMET_API_KEY = os.environ.get('COMET_API_KEY')
 logging.basicConfig(filename=LOG_FILE, level=logging.INFO)
 logger = logging.getLogger('waitress')
 logger.setLevel(logging.INFO)
