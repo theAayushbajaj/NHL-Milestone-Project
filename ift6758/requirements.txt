@@ -12,6 +12,5 @@ flask
 gunicorn
 scikit-learn
 comet_ml
-jupyterlab
-ipywidgets
+xgboost==0.90
 streamlit
